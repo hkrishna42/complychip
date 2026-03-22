@@ -1,0 +1,99 @@
+{
+  "name": "ComplyChip - Metadata Extraction",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "metadata-extraction",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Metadata extraction started\"}",
+        "options": {}
+      },
+      "webhookId": "metadata-extraction-01"
+    },
+    {
+      "id": "gemini-detailed-extraction",
+      "name": "Gemini - Detailed Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are an expert compliance document analyst. Perform a thorough extraction of all structured metadata from the following document text.\\n\\nReturn a JSON object with ALL of the following fields:\\n\\n1. **document_type**: Specific type (license, insurance_policy, lease_agreement, permit, contract, certificate_of_insurance, tax_filing, bond, warranty, service_agreement, nda, employment_contract)\\n2. **sub_type**: More specific classification (e.g., 'general_liability' for insurance, 'commercial_lease' for lease)\\n3. **effective_date**: ISO 8601 date when document becomes effective\\n4. **expiration_date**: ISO 8601 date when document expires\\n5. **renewal_date**: ISO 8601 date for renewal deadline (if different from expiration)\\n6. **parties**: Array of objects [{name, role, address, contact_info}]\\n7. **jurisdiction**: {state, country, governing_law}\\n8. **key_clauses**: Array of [{clause_number, clause_name, clause_text_summary, risk_level}] where risk_level is 'low', 'medium', or 'high'\\n9. **monetary_amounts**: Array of [{description, amount, currency, frequency, due_date}]\\n10. **coverage_details**: Object with {coverage_type, limits, deductible, exclusions} (for insurance docs)\\n11. **compliance_requirements**: Array of specific regulatory requirements referenced\\n12. **regulatory_references**: Array of [{regulation_name, section, description}]\\n13. **risk_flags**: Array of [{flag, severity, description}] where severity is 1-5\\n14. **termination_conditions**: Array of conditions under which the document can be terminated\\n15. **amendment_history**: Array of any referenced amendments or modifications\\n16. **signatures**: Array of [{name, title, date_signed}]\\n17. **special_conditions**: Array of non-standard conditions or riders\\n18. **summary**: Comprehensive 3-5 sentence summary\\n19. **confidence_score**: 0-1 float indicating extraction confidence\\n\\nDocument text:\\n{{ $json.text_content }}\\n\\nReturn ONLY valid JSON, no markdown formatting.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.05,\n    \"topP\": 0.9,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 90000
+        }
+      }
+    },
+    {
+      "id": "parse-validate",
+      "name": "Parse and Validate Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "jsCode": "// Parse and validate the Gemini extraction response\nconst geminiResponse = $input.first().json;\nconst webhookData = $('Webhook Trigger').first().json;\n\nconst requiredFields = [\n  'document_type', 'effective_date', 'expiration_date',\n  'parties', 'jurisdiction', 'key_clauses', 'summary'\n];\n\nlet metadata = {};\nlet validationErrors = [];\n\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  const cleaned = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  metadata = JSON.parse(cleaned);\n} catch (e) {\n  validationErrors.push(`JSON parse error: ${e.message}`);\n  metadata = {};\n}\n\n// Validate required fields\nfor (const field of requiredFields) {\n  if (!metadata[field] && metadata[field] !== 0) {\n    validationErrors.push(`Missing required field: ${field}`);\n  }\n}\n\n// Validate date formats\nconst dateFields = ['effective_date', 'expiration_date', 'renewal_date'];\nfor (const df of dateFields) {\n  if (metadata[df]) {\n    const parsed = new Date(metadata[df]);\n    if (isNaN(parsed.getTime())) {\n      validationErrors.push(`Invalid date format for ${df}: ${metadata[df]}`);\n      metadata[df] = null;\n    }\n  }\n}\n\n// Validate risk flags severity\nif (Array.isArray(metadata.risk_flags)) {\n  metadata.risk_flags = metadata.risk_flags.map(flag => ({\n    ...flag,\n    severity: Math.min(5, Math.max(1, parseInt(flag.severity) || 3))\n  }));\n}\n\n// Ensure arrays are actually arrays\nconst arrayFields = ['parties', 'key_clauses', 'monetary_amounts', 'compliance_requirements',\n  'regulatory_references', 'risk_flags', 'termination_conditions', 'amendment_history',\n  'signatures', 'special_conditions'];\nfor (const af of arrayFields) {\n  if (metadata[af] && !Array.isArray(metadata[af])) {\n    metadata[af] = [metadata[af]];\n  } else if (!metadata[af]) {\n    metadata[af] = [];\n  }\n}\n\n// Set confidence based on validation\nif (!metadata.confidence_score) {\n  metadata.confidence_score = validationErrors.length === 0 ? 0.9 : Math.max(0.1, 0.9 - (validationErrors.length * 0.1));\n}\n\nreturn [{\n  json: {\n    document_id: webhookData.document_id,\n    entity_id: webhookData.entity_id,\n    metadata: metadata,\n    validation_errors: validationErrors,\n    is_valid: validationErrors.length === 0,\n    extracted_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "callback-metadata",
+      "name": "Callback - Metadata Extracted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:8000/webhooks/metadata-extracted",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"document_id\": \"{{ $json.document_id }}\",\n  \"entity_id\": \"{{ $json.entity_id }}\",\n  \"metadata\": {{ JSON.stringify($json.metadata) }},\n  \"is_valid\": {{ $json.is_valid }},\n  \"validation_errors\": {{ JSON.stringify($json.validation_errors) }},\n  \"confidence_score\": {{ $json.metadata.confidence_score }},\n  \"extracted_at\": \"{{ $json.extracted_at }}\"\n}",
+        "options": {
+          "timeout": 10000,
+          "allowUnauthorizedCerts": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Gemini - Detailed Extraction", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Detailed Extraction": {
+      "main": [
+        [{ "node": "Parse and Validate Fields", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse and Validate Fields": {
+      "main": [
+        [{ "node": "Callback - Metadata Extracted", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "metadata" },
+    { "name": "ai-extraction" }
+  ]
+}

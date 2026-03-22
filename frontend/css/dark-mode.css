@@ -1,0 +1,713 @@
+/* ==========================================================================
+   ComplyChip V3 — Dark Mode Theme
+   Premium Harvey.ai-inspired dark theme
+   Activated via [data-theme="dark"] on <html>
+   ========================================================================== */
+
+/* ==========================================================================
+   1. SMOOTH TRANSITION
+   ========================================================================== */
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* ==========================================================================
+   2. DESIGN TOKEN OVERRIDES
+   ========================================================================== */
+
+[data-theme="dark"] {
+  /* ---- Backgrounds ---- */
+  --bg-body: #0a0a0f;
+  --bg-card: #141420;
+  --bg-sidebar: #0c0c14;
+  --bg-sidebar-hover: #1a1a2e;
+  --bg-sidebar-active: #22223a;
+  --bg-input: #10101c;
+  --bg-input-focus: #18182a;
+
+  /* ---- Text ---- */
+  --text-primary: #e8e8f0;
+  --text-secondary: #9898b0;
+  --text-muted: #686880;
+  --text-sidebar: #7878a0;
+  --text-sidebar-active: #f0f0ff;
+
+  /* ---- Accent (slightly brighter for dark bg) ---- */
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-light: rgba(99, 102, 241, 0.10);
+  --accent-border: rgba(99, 102, 241, 0.25);
+
+  /* ---- Semantic colours (brightened for contrast) ---- */
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.10);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.10);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.10);
+  --info: #3b82f6;
+  --info-bg: rgba(59, 130, 246, 0.10);
+
+  /* ---- Borders ---- */
+  --border: #2a2a3e;
+  --border-light: #1e1e30;
+  --border-dark: #3a3a52;
+
+  /* ---- Shadows (deeper, more diffused) ---- */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 20px -3px rgba(0, 0, 0, 0.6), 0 4px 8px -4px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.7), 0 8px 16px -6px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   3. SIDEBAR OVERRIDES
+   ========================================================================== */
+
+[data-theme="dark"] .sidebar {
+  background-color: #0c0c14;
+  border-right-color: #1a1a2e;
+}
+
+[data-theme="dark"] .sidebar-footer {
+  border-top-color: #1a1a2e;
+}
+
+[data-theme="dark"] .sidebar-nav {
+  scrollbar-color: #2a2a3e transparent;
+}
+
+[data-theme="dark"] .sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: #2a2a3e;
+}
+
+[data-theme="dark"] .sidebar-group-label {
+  color: #585878;
+}
+
+[data-theme="dark"] .sidebar-item:hover {
+  color: #d0d0e8;
+}
+
+[data-theme="dark"] .sidebar-user-name {
+  color: #d0d0e8;
+}
+
+[data-theme="dark"] .sidebar-user-role {
+  color: #585878;
+}
+
+/* ==========================================================================
+   4. TOP BAR
+   ========================================================================== */
+
+[data-theme="dark"] .topbar {
+  background-color: #0e0e18;
+  border-bottom-color: #1e1e30;
+}
+
+/* ==========================================================================
+   5. CARDS
+   ========================================================================== */
+
+[data-theme="dark"] .card {
+  background-color: #141420;
+  border-color: #2a2a3e;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.03);
+}
+
+[data-theme="dark"] .card-interactive:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.08);
+}
+
+[data-theme="dark"] .card-header {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .card-footer {
+  border-top-color: #1e1e30;
+}
+
+/* ==========================================================================
+   6. TABLES
+   ========================================================================== */
+
+[data-theme="dark"] .data-table th {
+  background-color: #10101c;
+  border-bottom-color: #2a2a3e;
+}
+
+[data-theme="dark"] .data-table td {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .data-table tr:hover td {
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+[data-theme="dark"] .doc-table-wrap {
+  border-color: #2a2a3e;
+  background-color: #141420;
+}
+
+[data-theme="dark"] .doc-table th {
+  background-color: #10101c;
+  border-bottom-color: #2a2a3e;
+}
+
+[data-theme="dark"] .doc-table td {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .doc-table tbody tr:hover td {
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+/* ==========================================================================
+   7. FORMS & INPUTS
+   ========================================================================== */
+
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .form-textarea {
+  background-color: #10101c;
+  border-color: #2a2a3e;
+  color: #e8e8f0;
+}
+
+[data-theme="dark"] .form-input::placeholder,
+[data-theme="dark"] .form-textarea::placeholder {
+  color: #585878;
+}
+
+[data-theme="dark"] .form-input:focus,
+[data-theme="dark"] .form-select:focus,
+[data-theme="dark"] .form-textarea:focus {
+  background-color: #18182a;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+[data-theme="dark"] .search-bar input {
+  background-color: #10101c;
+  border-color: #2a2a3e;
+  color: #e8e8f0;
+}
+
+[data-theme="dark"] .search-bar input::placeholder {
+  color: #585878;
+}
+
+[data-theme="dark"] .search-bar input:focus {
+  background-color: #18182a;
+  border-color: #6366f1;
+}
+
+/* ==========================================================================
+   8. BUTTONS
+   ========================================================================== */
+
+[data-theme="dark"] .btn-secondary {
+  background-color: transparent;
+  border-color: #2a2a3e;
+  color: #c0c0d8;
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background-color: #1a1a2e;
+  border-color: #3a3a52;
+}
+
+[data-theme="dark"] .btn-ghost {
+  color: #9898b0;
+}
+
+[data-theme="dark"] .btn-ghost:hover {
+  background-color: #1a1a2e;
+  color: #e8e8f0;
+}
+
+/* ==========================================================================
+   9. PILLS & BADGES
+   ========================================================================== */
+
+[data-theme="dark"] .pill-neutral {
+  background-color: #1a1a2e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .doc-type-badge {
+  background-color: #1a1a2e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .detail-tag {
+  background-color: #1a1a2e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .role-badge {
+  background-color: rgba(99, 102, 241, 0.12);
+}
+
+/* ==========================================================================
+   10. MODALS
+   ========================================================================== */
+
+[data-theme="dark"] .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .modal {
+  background-color: #141420;
+  border: 1px solid #2a2a3e;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .modal-header {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .modal-footer {
+  border-top-color: #1e1e30;
+}
+
+[data-theme="dark"] .modal-close:hover {
+  background-color: #1a1a2e;
+}
+
+/* ==========================================================================
+   11. TOASTS
+   ========================================================================== */
+
+[data-theme="dark"] .toast {
+  background-color: #18182a;
+  border-color: #2a2a3e;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .toast-dismiss:hover {
+  background-color: #22223a;
+}
+
+/* ==========================================================================
+   12. DROPDOWNS
+   ========================================================================== */
+
+[data-theme="dark"] .dropdown-menu {
+  background-color: #18182a;
+  border-color: #2a2a3e;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background-color: #22223a;
+}
+
+[data-theme="dark"] .dropdown-divider {
+  background-color: #1e1e30;
+}
+
+/* ==========================================================================
+   13. TABS
+   ========================================================================== */
+
+[data-theme="dark"] .tab-group {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .tab-group-pills {
+  background-color: #10101c;
+}
+
+[data-theme="dark"] .tab-group-pills .tab-item.active {
+  background-color: #1e1e30;
+  color: #e8e8f0;
+}
+
+/* ==========================================================================
+   14. SCORE RING & PROGRESS
+   ========================================================================== */
+
+[data-theme="dark"] .score-ring-track {
+  stroke: #1e1e30;
+}
+
+[data-theme="dark"] .score-ring-label {
+  color: #e8e8f0;
+}
+
+[data-theme="dark"] .progress-bar {
+  background-color: #1e1e30;
+}
+
+[data-theme="dark"] .score-bar-mini {
+  background-color: #1e1e30;
+}
+
+/* ==========================================================================
+   15. CHAT / COPILOT
+   ========================================================================== */
+
+[data-theme="dark"] .chat-input-area {
+  background-color: #0e0e18;
+  border-top-color: #1e1e30;
+}
+
+[data-theme="dark"] .chat-input-wrap {
+  background-color: #141420;
+  border-color: #2a2a3e;
+}
+
+[data-theme="dark"] .chat-input-wrap:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+[data-theme="dark"] .chat-textarea {
+  color: #e8e8f0;
+}
+
+[data-theme="dark"] .chat-textarea::placeholder {
+  color: #585878;
+}
+
+[data-theme="dark"] .message-user .message-avatar {
+  background-color: #1a1a2e;
+}
+
+[data-theme="dark"] .message-ai .message-bubble {
+  background-color: #18182a;
+  border-color: #2a2a3e;
+}
+
+[data-theme="dark"] .message-bubble code {
+  background-color: #10101c;
+  color: #c4b5fd;
+}
+
+[data-theme="dark"] .message-bubble pre {
+  background-color: #0c0c14;
+  border: 1px solid #1e1e30;
+}
+
+/* ==========================================================================
+   16. UPLOAD ZONE
+   ========================================================================== */
+
+[data-theme="dark"] .upload-zone {
+  border-color: #2a2a3e;
+  background-color: transparent;
+}
+
+[data-theme="dark"] .upload-zone:hover,
+[data-theme="dark"] .upload-zone.drag-over {
+  border-color: #6366f1;
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+/* ==========================================================================
+   17. FILTER & SORT CONTROLS
+   ========================================================================== */
+
+[data-theme="dark"] .status-filter-btn {
+  border-color: #2a2a3e;
+  background-color: #141420;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .status-filter-btn:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #e8e8f0;
+}
+
+[data-theme="dark"] .filter-select {
+  background-color: #141420;
+  border-color: #2a2a3e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .sort-btn {
+  background-color: #141420;
+  border-color: #2a2a3e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .sort-btn:hover {
+  border-color: #3a3a52;
+  color: #e8e8f0;
+}
+
+/* ==========================================================================
+   18. DETAIL PANEL (Slide-out)
+   ========================================================================== */
+
+[data-theme="dark"] .detail-overlay {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .detail-panel {
+  background-color: #141420;
+  border-left-color: #2a2a3e;
+}
+
+[data-theme="dark"] .detail-header {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .detail-close:hover {
+  background-color: #1a1a2e;
+}
+
+[data-theme="dark"] .detail-actions {
+  border-top-color: #1e1e30;
+}
+
+[data-theme="dark"] .detail-note {
+  background-color: #10101c;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .related-doc {
+  border-color: #2a2a3e;
+}
+
+[data-theme="dark"] .related-doc:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+[data-theme="dark"] .related-doc-icon {
+  background-color: #1a1a2e;
+}
+
+/* ==========================================================================
+   19. SETTINGS PAGE
+   ========================================================================== */
+
+[data-theme="dark"] .settings-section {
+  background-color: #141420;
+  border-color: #2a2a3e;
+}
+
+[data-theme="dark"] .toggle-row {
+  border-bottom-color: #1e1e30;
+}
+
+[data-theme="dark"] .toggle-slider {
+  background-color: #2a2a3e;
+}
+
+[data-theme="dark"] .weight-bar {
+  background-color: #1a1a2e;
+}
+
+[data-theme="dark"] .session-item {
+  border-color: #2a2a3e;
+}
+
+[data-theme="dark"] .session-icon {
+  background-color: #1a1a2e;
+}
+
+[data-theme="dark"] .settings-tabs {
+  border-bottom-color: #1e1e30;
+}
+
+/* ==========================================================================
+   20. EMPTY STATES
+   ========================================================================== */
+
+[data-theme="dark"] .empty-state svg {
+  color: #585878;
+}
+
+[data-theme="dark"] .empty-state h3 {
+  color: #c0c0d8;
+}
+
+[data-theme="dark"] .empty-state p {
+  color: #686880;
+}
+
+/* ==========================================================================
+   21. SKELETON LOADING (Dark shimmer)
+   ========================================================================== */
+
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    #141420 25%,
+    #1e1e30 50%,
+    #141420 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ==========================================================================
+   22. CHART CONTAINERS
+   ========================================================================== */
+
+[data-theme="dark"] .chart-wrap,
+[data-theme="dark"] .chart-wrap-sm {
+  background-color: transparent;
+}
+
+/* ==========================================================================
+   23. SCROLLBARS (Dark track + lighter thumb)
+   ========================================================================== */
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background-color: #2a2a3e;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #3a3a52;
+}
+
+/* Firefox scrollbar */
+[data-theme="dark"] * {
+  scrollbar-color: #2a2a3e #0a0a0f;
+}
+
+/* ==========================================================================
+   24. CODE BLOCKS
+   ========================================================================== */
+
+[data-theme="dark"] code {
+  background-color: #10101c;
+  color: #c4b5fd;
+  border: 1px solid #1e1e30;
+}
+
+[data-theme="dark"] pre {
+  background-color: #0c0c14;
+  border: 1px solid #1e1e30;
+}
+
+[data-theme="dark"] pre code {
+  background: none;
+  border: none;
+}
+
+/* ==========================================================================
+   25. TOOLTIPS
+   ========================================================================== */
+
+[data-theme="dark"] [data-tooltip]::after {
+  background-color: #22223a;
+  color: #e8e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   26. DIVIDERS
+   ========================================================================== */
+
+[data-theme="dark"] .divider {
+  background-color: #1e1e30;
+}
+
+[data-theme="dark"] .divider-vertical {
+  background-color: #1e1e30;
+}
+
+/* ==========================================================================
+   27. AVATARS
+   ========================================================================== */
+
+[data-theme="dark"] .avatar-group .avatar {
+  border-color: #141420;
+}
+
+/* ==========================================================================
+   28. STAT CARDS
+   ========================================================================== */
+
+[data-theme="dark"] .stat-label {
+  color: #686880;
+}
+
+[data-theme="dark"] .stat-value {
+  color: #e8e8f0;
+}
+
+/* ==========================================================================
+   29. ACTION BUTTONS (table row actions)
+   ========================================================================== */
+
+[data-theme="dark"] .action-btn {
+  color: #686880;
+}
+
+[data-theme="dark"] .action-btn:hover {
+  background-color: #1a1a2e;
+  color: #e8e8f0;
+}
+
+/* ==========================================================================
+   30. SELECTION
+   ========================================================================== */
+
+[data-theme="dark"] ::selection {
+  background-color: rgba(99, 102, 241, 0.25);
+  color: #c4b5fd;
+}
+
+/* ==========================================================================
+   31. FOCUS VISIBLE
+   ========================================================================== */
+
+[data-theme="dark"] :focus-visible {
+  outline-color: #6366f1;
+}
+
+/* ==========================================================================
+   32. SIDEBAR TOGGLE
+   ========================================================================== */
+
+[data-theme="dark"] .sidebar-toggle:hover {
+  background-color: #1a1a2e;
+}
+
+/* ==========================================================================
+   33. CHAT SUGGESTIONS
+   ========================================================================== */
+
+[data-theme="dark"] .chat-suggestion {
+  background-color: #141420;
+  border-color: #2a2a3e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .chat-suggestion:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  background-color: #1a1a2e;
+  color: #e8e8f0;
+}
+
+/* ==========================================================================
+   34. SOURCE CHIPS (Copilot)
+   ========================================================================== */
+
+[data-theme="dark"] .source-chip {
+  background-color: #10101c;
+  border-color: #2a2a3e;
+  color: #9898b0;
+}
+
+[data-theme="dark"] .source-chip:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #c4b5fd;
+}

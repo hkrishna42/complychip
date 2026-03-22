@@ -1,0 +1,141 @@
+{
+  "name": "ComplyChip - Scheduled Compliance Monitor",
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Daily 9AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fetch-expiring-docs",
+      "name": "Fetch Entities with Expiring Documents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents:runQuery",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"structuredQuery\": {\n    \"from\": [{ \"collectionId\": \"documents\" }],\n    \"where\": {\n      \"compositeFilter\": {\n        \"op\": \"AND\",\n        \"filters\": [\n          {\n            \"fieldFilter\": {\n              \"field\": { \"fieldPath\": \"status\" },\n              \"op\": \"EQUAL\",\n              \"value\": { \"stringValue\": \"processed\" }\n            }\n          },\n          {\n            \"fieldFilter\": {\n              \"field\": { \"fieldPath\": \"expiration_date\" },\n              \"op\": \"LESS_THAN_OR_EQUAL\",\n              \"value\": { \"stringValue\": \"{{ new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}\" }\n            }\n          }\n        ]\n      }\n    },\n    \"orderBy\": [{ \"field\": { \"fieldPath\": \"expiration_date\" }, \"direction\": \"ASCENDING\" }],\n    \"limit\": 500\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "identify-expiring",
+      "name": "Identify Expiring Documents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "jsCode": "// Categorize documents by expiration urgency\nconst documents = $input.all().map(item => item.json);\nconst now = new Date();\n\nconst categories = {\n  expired: [],\n  expiring_30: [],\n  expiring_60: [],\n  expiring_90: []\n};\n\nconst reminders = [];\n\nfor (const doc of documents) {\n  if (!doc.document || !doc.document.fields) continue;\n  \n  const fields = doc.document.fields;\n  const expirationStr = fields.expiration_date?.stringValue;\n  if (!expirationStr) continue;\n  \n  const expDate = new Date(expirationStr);\n  const daysUntil = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));\n  const docId = doc.document.name.split('/').pop();\n  \n  const docInfo = {\n    document_id: docId,\n    entity_id: fields.entity_id?.stringValue || '',\n    filename: fields.filename?.stringValue || '',\n    document_type: fields.document_type?.stringValue || '',\n    expiration_date: expirationStr,\n    days_until_expiry: daysUntil\n  };\n  \n  if (daysUntil < 0) {\n    categories.expired.push(docInfo);\n    reminders.push({ ...docInfo, urgency: 'expired', reminder_type: 'expiration_warning' });\n  } else if (daysUntil <= 30) {\n    categories.expiring_30.push(docInfo);\n    reminders.push({ ...docInfo, urgency: 'critical', reminder_type: 'expiration_warning' });\n  } else if (daysUntil <= 60) {\n    categories.expiring_60.push(docInfo);\n    reminders.push({ ...docInfo, urgency: 'warning', reminder_type: 'expiration_warning' });\n  } else {\n    categories.expiring_90.push(docInfo);\n    reminders.push({ ...docInfo, urgency: 'notice', reminder_type: 'expiration_warning' });\n  }\n}\n\nreturn [{\n  json: {\n    categories: categories,\n    reminders: reminders,\n    summary: {\n      total: reminders.length,\n      expired: categories.expired.length,\n      expiring_30_days: categories.expiring_30.length,\n      expiring_60_days: categories.expiring_60.length,\n      expiring_90_days: categories.expiring_90.length\n    },\n    checked_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "create-reminders",
+      "name": "Create Reminder Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 300],
+      "parameters": {
+        "jsCode": "// Create individual reminder records for each expiring document\nconst data = $input.first().json;\nconst reminders = data.reminders || [];\n\nconst reminderRecords = reminders.map((r, idx) => ({\n  json: {\n    reminder_id: `auto_${Date.now()}_${idx}`,\n    entity_id: r.entity_id,\n    document_id: r.document_id,\n    document_name: r.filename,\n    document_type: r.document_type,\n    expiration_date: r.expiration_date,\n    days_until_expiry: r.days_until_expiry,\n    urgency: r.urgency,\n    reminder_type: r.reminder_type,\n    status: 'pending',\n    created_at: new Date().toISOString()\n  }\n}));\n\n// Also pass through the summary for the digest email\nreminderRecords.push({\n  json: {\n    _is_summary: true,\n    summary: data.summary,\n    categories: data.categories,\n    checked_at: data.checked_at\n  }\n});\n\nreturn reminderRecords;"
+      }
+    },
+    {
+      "id": "recalculate-scores",
+      "name": "Recalculate Compliance Scores",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1320, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/compliance/recalculate-all",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"triggered_by\": \"scheduled_monitor\",\n  \"timestamp\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "timeout": 60000,
+          "allowUnauthorizedCerts": true
+        }
+      }
+    },
+    {
+      "id": "daily-digest-email",
+      "name": "Send Daily Digest Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1320, 420],
+      "parameters": {
+        "fromEmail": "notifications@complychip.io",
+        "toEmail": "={{ $('Daily 9AM Trigger').first().json.admin_email || 'admin@complychip.io' }}",
+        "subject": "=[ComplyChip] Daily Compliance Digest - {{ new Date().toLocaleDateString() }}",
+        "emailType": "html",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #1a1a2e; padding: 20px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"color: #00d4aa; margin: 0; font-size: 20px;\">ComplyChip Daily Digest</h1>\n    <p style=\"color: #8892b0; margin: 4px 0 0;\">{{ new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>\n  </div>\n  <div style=\"background: #16213e; padding: 24px; color: #e0e0e0;\">\n    <h2 style=\"color: #ffffff; margin-top: 0;\">Document Expiration Summary</h2>\n    <div style=\"display: flex; gap: 12px; margin: 16px 0;\">\n      <div style=\"background: #ff6b6b20; border: 1px solid #ff6b6b; border-radius: 8px; padding: 16px; flex: 1; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #ff6b6b;\">{{ $json.summary?.expired || 0 }}</div>\n        <div style=\"color: #8892b0; font-size: 12px;\">Expired</div>\n      </div>\n      <div style=\"background: #ffd93d20; border: 1px solid #ffd93d; border-radius: 8px; padding: 16px; flex: 1; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #ffd93d;\">{{ $json.summary?.expiring_30_days || 0 }}</div>\n        <div style=\"color: #8892b0; font-size: 12px;\">Within 30 Days</div>\n      </div>\n      <div style=\"background: #00d4aa20; border: 1px solid #00d4aa; border-radius: 8px; padding: 16px; flex: 1; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #00d4aa;\">{{ $json.summary?.expiring_60_days || 0 }}</div>\n        <div style=\"color: #8892b0; font-size: 12px;\">Within 60 Days</div>\n      </div>\n    </div>\n    <p style=\"color: #8892b0;\">Total documents requiring attention: <strong style=\"color: #fff;\">{{ $json.summary?.total || 0 }}</strong></p>\n    <a href=\"http://127.0.0.1:8000\" style=\"display: inline-block; background: #00d4aa; color: #1a1a2e; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 12px;\">Open Dashboard</a>\n  </div>\n  <div style=\"background: #0f3460; padding: 12px; text-align: center; border-radius: 0 0 8px 8px;\">\n    <p style=\"color: #8892b0; margin: 0; font-size: 12px;\">Automated report from ComplyChip Compliance Monitoring</p>\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "ComplyChip SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 9AM Trigger": {
+      "main": [
+        [{ "node": "Fetch Entities with Expiring Documents", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Entities with Expiring Documents": {
+      "main": [
+        [{ "node": "Identify Expiring Documents", "type": "main", "index": 0 }]
+      ]
+    },
+    "Identify Expiring Documents": {
+      "main": [
+        [{ "node": "Create Reminder Records", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Reminder Records": {
+      "main": [
+        [
+          { "node": "Recalculate Compliance Scores", "type": "main", "index": 0 },
+          { "node": "Send Daily Digest Email", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "scheduled" },
+    { "name": "monitoring" }
+  ]
+}

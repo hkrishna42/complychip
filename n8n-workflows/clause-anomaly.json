@@ -1,0 +1,146 @@
+{
+  "name": "ComplyChip - Clause Anomaly Detection",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "clause-anomaly",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Clause anomaly detection started\"}",
+        "options": {}
+      },
+      "webhookId": "clause-anomaly-01"
+    },
+    {
+      "id": "fetch-doc-clauses",
+      "name": "Fetch Document Clauses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/documents/{{ $json.document_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "pinecone-template-search",
+      "name": "Pinecone - Search Standard Templates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [760, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://complychip-docs-xxxxxxx.svc.aped-4627-b74a.pinecone.io/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"vector\": [],\n  \"topK\": 5,\n  \"includeMetadata\": true,\n  \"namespace\": \"compliance-templates\",\n  \"filter\": {\n    \"document_type\": { \"$eq\": \"{{ $('Fetch Document Clauses').first().json.fields?.document_type?.stringValue || 'contract' }}\" }\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "gemini-compare-clauses",
+      "name": "Gemini - Compare Clauses with Templates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a legal document clause comparison expert. Compare the clauses in the target document against standard template clauses to identify anomalies, deviations, and potential risks.\\n\\nTarget Document:\\n{{ JSON.stringify($('Fetch Document Clauses').first().json) }}\\n\\nStandard Templates (from similar documents):\\n{{ JSON.stringify($('Pinecone - Search Standard Templates').first().json) }}\\n\\nFor each clause in the target document:\\n1. Find the closest matching standard template clause\\n2. Calculate a deviation score (0 = identical, 1 = completely different)\\n3. Identify specific deviations and their risk implications\\n4. Flag missing standard clauses not present in the target\\n\\nReturn a JSON object with:\\n- clause_comparisons: array of {\\n    clause_name: string,\\n    clause_text_snippet: string (first 200 chars),\\n    matched_template_clause: string or null,\\n    deviation_score: float (0-1),\\n    deviations: array of {description, risk_level, recommendation},\\n    is_favorable: boolean (favorable to document holder),\\n    is_standard: boolean\\n  }\\n- missing_clauses: array of {clause_name, importance, standard_text_snippet, risk_if_missing}\\n- added_clauses: array of {clause_name, description, risk_assessment}\\n- overall_deviation_score: float (0-1)\\n- risk_summary: string\\n\\nReturn ONLY valid JSON.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"topP\": 0.85,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 90000
+        }
+      }
+    },
+    {
+      "id": "score-anomalies",
+      "name": "Score Anomalies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300],
+      "parameters": {
+        "jsCode": "// Score and finalize clause anomaly results\nconst webhookData = $('Webhook Trigger').first().json;\nconst geminiResponse = $input.first().json;\n\nlet comparison = {};\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  const cleaned = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  comparison = JSON.parse(cleaned);\n} catch (e) {\n  comparison = {\n    clause_comparisons: [],\n    missing_clauses: [],\n    added_clauses: [],\n    overall_deviation_score: 0,\n    risk_summary: 'Analysis failed - manual review required.'\n  };\n}\n\n// Normalize all deviation scores to 0-1 range\nconst clauseComparisons = (comparison.clause_comparisons || []).map(clause => ({\n  ...clause,\n  deviation_score: Math.max(0, Math.min(1, parseFloat(clause.deviation_score) || 0))\n}));\n\n// Calculate weighted anomaly score\nconst deviationScores = clauseComparisons.map(c => c.deviation_score);\nconst avgDeviation = deviationScores.length > 0\n  ? deviationScores.reduce((a, b) => a + b, 0) / deviationScores.length\n  : 0;\n\n// Factor in missing and added clauses\nconst missingPenalty = Math.min(0.3, (comparison.missing_clauses || []).length * 0.05);\nconst addedPenalty = Math.min(0.2, (comparison.added_clauses || []).length * 0.03);\n\nconst finalAnomalyScore = Math.max(0, Math.min(1, \n  Math.round((avgDeviation + missingPenalty + addedPenalty) * 100) / 100\n));\n\n// Classify anomalies by severity\nconst highRiskClauses = clauseComparisons.filter(c => c.deviation_score >= 0.7);\nconst mediumRiskClauses = clauseComparisons.filter(c => c.deviation_score >= 0.4 && c.deviation_score < 0.7);\nconst lowRiskClauses = clauseComparisons.filter(c => c.deviation_score > 0 && c.deviation_score < 0.4);\n\nreturn [{\n  json: {\n    document_id: webhookData.document_id,\n    entity_id: webhookData.entity_id,\n    anomaly_score: finalAnomalyScore,\n    anomaly_level: finalAnomalyScore >= 0.7 ? 'high' : finalAnomalyScore >= 0.4 ? 'medium' : finalAnomalyScore > 0.1 ? 'low' : 'none',\n    clause_comparisons: clauseComparisons,\n    missing_clauses: comparison.missing_clauses || [],\n    added_clauses: comparison.added_clauses || [],\n    risk_breakdown: {\n      high_risk_clauses: highRiskClauses.length,\n      medium_risk_clauses: mediumRiskClauses.length,\n      low_risk_clauses: lowRiskClauses.length,\n      standard_clauses: clauseComparisons.filter(c => c.deviation_score === 0).length\n    },\n    risk_summary: comparison.risk_summary || '',\n    analyzed_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "update-doc-anomaly",
+      "name": "Update Document with Anomaly Scores",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1600, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/documents/{{ $json.document_id }}?updateMask.fieldPaths=anomaly_score&updateMask.fieldPaths=anomaly_level&updateMask.fieldPaths=clause_risk_breakdown&updateMask.fieldPaths=anomaly_analyzed_at",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"anomaly_score\": { \"doubleValue\": {{ $json.anomaly_score }} },\n    \"anomaly_level\": { \"stringValue\": \"{{ $json.anomaly_level }}\" },\n    \"clause_risk_breakdown\": { \"stringValue\": \"{{ JSON.stringify($json.risk_breakdown) }}\" },\n    \"anomaly_analyzed_at\": { \"stringValue\": \"{{ $json.analyzed_at }}\" }\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Fetch Document Clauses", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Document Clauses": {
+      "main": [
+        [{ "node": "Pinecone - Search Standard Templates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Pinecone - Search Standard Templates": {
+      "main": [
+        [{ "node": "Gemini - Compare Clauses with Templates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Compare Clauses with Templates": {
+      "main": [
+        [{ "node": "Score Anomalies", "type": "main", "index": 0 }]
+      ]
+    },
+    "Score Anomalies": {
+      "main": [
+        [{ "node": "Update Document with Anomaly Scores", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "clause-analysis" },
+    { "name": "anomaly-detection" }
+  ]
+}

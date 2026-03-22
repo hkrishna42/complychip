@@ -1,0 +1,30 @@
+# ComplyChip V3 - Dependencies
+# Core
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+httpx==0.24.1
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==41.0.7
+
+# Firebase / Firestore / GCS
+firebase-admin==6.2.0
+google-cloud-storage==2.13.0
+
+# Google Drive
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.100.0
+
+# AI / ML
+google-generativeai==0.3.0
+pinecone-client==3.0.0
+
+# Utilities
+cachetools==5.3.2
+slowapi==0.1.9
+python-dotenv==1.0.0

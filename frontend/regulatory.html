@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regulatory - ComplyChip</title>
+    <link rel="stylesheet" href="/css/design-system.css?v=4">
+    <link rel="stylesheet" href="/css/components.css?v=4">
+    <link rel="stylesheet" href="/css/dark-mode.css?v=4">
+    <style>
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 20px 24px; box-shadow: var(--shadow-xs);
+        }
+
+        .filter-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+        .filter-select {
+            padding: 7px 30px 7px 12px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card); font-size: var(--text-xs); color: var(--text-secondary);
+            font-family: var(--font-sans); cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center;
+        }
+        .results-count { font-size: var(--text-xs); color: var(--text-muted); margin-left: auto; }
+
+        /* Alert Cards */
+        .alert-list { display: flex; flex-direction: column; gap: 12px; }
+        .alert-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 20px 24px; box-shadow: var(--shadow-xs); transition: all var(--transition-fast); cursor: pointer;
+        }
+        .alert-card:hover { box-shadow: var(--shadow-md); border-color: var(--accent-border); }
+        .alert-card.expanded { border-color: var(--accent-border); }
+        .alert-card-header { display: flex; align-items: flex-start; gap: 12px; }
+        .alert-severity-bar { width: 4px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 40px; }
+        .alert-severity-bar.critical { background: var(--danger); }
+        .alert-severity-bar.high { background: #f97316; }
+        .alert-severity-bar.medium { background: var(--warning); }
+        .alert-severity-bar.low { background: var(--success); }
+        .alert-content { flex: 1; min-width: 0; }
+        .alert-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+        .alert-title { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); }
+        .alert-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .alert-source { font-size: var(--text-xs); color: var(--text-muted); }
+        .alert-date { font-size: var(--text-xs); color: var(--text-muted); }
+        .jurisdiction-badge {
+            padding: 2px 8px; border-radius: var(--radius-sm); font-size: 10px; font-weight: 600;
+            background: var(--accent-light); color: var(--accent);
+        }
+        .severity-pill {
+            padding: 2px 10px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 600;
+        }
+        .severity-pill.critical { background: var(--danger-bg); color: var(--danger); }
+        .severity-pill.high { background: rgba(249, 115, 22, 0.08); color: #f97316; }
+        .severity-pill.medium { background: var(--warning-bg); color: var(--warning); }
+        .severity-pill.low { background: var(--success-bg); color: var(--success); }
+        .alert-summary { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; margin-top: 8px; }
+        .alert-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .alert-tag { padding: 3px 10px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 500; background: var(--bg-input); color: var(--text-secondary); }
+        .alert-actions { display: flex; gap: 8px; margin-top: 12px; }
+        .alert-actions .btn { font-size: var(--text-xs); padding: 5px 12px; }
+
+        /* Expanded Details */
+        .alert-details { display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .alert-card.expanded .alert-details { display: block; }
+        .alert-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .alert-detail-label { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 2px; }
+        .alert-detail-value { font-size: var(--text-sm); color: var(--text-primary); font-weight: 500; }
+        .alert-full-text { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; padding: 12px; background: var(--bg-input); border-radius: var(--radius-md); }
+
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .alert-detail-grid { grid-template-columns: 1fr; } }
+    </style>
+    <script>if(localStorage.getItem("complychip_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")</script>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-container"></div>
+        <div class="main-content">
+            <div id="topbar-container"></div>
+            <div class="page-content">
+                <!-- Stats -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-label">New Alerts</div>
+                        <div class="stat-value" style="color:var(--danger)" id="newAlerts">4</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Under Review</div>
+                        <div class="stat-value" id="underReview">2</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Jurisdictions Monitored</div>
+                        <div class="stat-value" id="jurisdictions">5</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Last Updated</div>
+                        <div class="stat-value" style="font-size:var(--text-lg)" id="lastUpdated">2h ago</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-bar">
+                    <select class="filter-select" id="jurisdictionFilter" onchange="filterAlerts()">
+                        <option value="">All Jurisdictions</option>
+                        <option value="Federal">Federal</option>
+                        <option value="State - California">State - California</option>
+                        <option value="EU">EU</option>
+                        <option value="State - New York">State - New York</option>
+                    </select>
+                    <select class="filter-select" id="severityFilter" onchange="filterAlerts()">
+                        <option value="">All Severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select class="filter-select" id="statusFilter" onchange="filterAlerts()">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="reviewed">Reviewed</option>
+                        <option value="dismissed">Dismissed</option>
+                    </select>
+                    <span class="results-count" id="resultsCount">6 alerts</span>
+                </div>
+
+                <!-- Alert List -->
+                <div class="alert-list" id="alertList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js?v=4"></script>
+    <script src="/js/components.js?v=4"></script>
+    <script>
+        const demoAlerts = [
+            {
+                id: 'a1', title: 'OSHA Updates Workplace Safety Standards for Industrial Facilities',
+                source: 'OSHA Federal Register', date: '2026-03-12', jurisdiction: 'Federal',
+                severity: 'critical', status: 'new',
+                summary: 'New OSHA regulations require enhanced safety protocols for industrial facilities, including updated PPE requirements and expanded incident reporting obligations effective April 1, 2026.',
+                affectedTypes: ['Safety Certificate', 'Inspection Report', 'Training Records'],
+                fullText: 'The Occupational Safety and Health Administration has published final rule amendments to 29 CFR 1910 regarding workplace safety standards in industrial environments. Key changes include mandatory quarterly safety audits for facilities with more than 50 employees, updated personal protective equipment standards, and expanded injury reporting requirements within 8 hours of incident.',
+                effectiveDate: '2026-04-01', complianceDeadline: '2026-06-01',
+                affectedEntities: ['Harbor Industrial Complex'],
+            },
+            {
+                id: 'a2', title: 'EPA Revises Environmental Discharge Limits',
+                source: 'EPA Office of Water', date: '2026-03-08', jurisdiction: 'Federal',
+                severity: 'high', status: 'new',
+                summary: 'EPA has proposed stricter discharge limits for industrial wastewater, affecting facilities with current environmental permits.',
+                affectedTypes: ['Environmental Permit', 'Discharge Reports'],
+                fullText: 'The Environmental Protection Agency has issued proposed amendments to the Clean Water Act discharge standards under 40 CFR 122. Revised total suspended solids and biological oxygen demand limits would require enhanced treatment systems for affected facilities.',
+                effectiveDate: '2026-07-01', complianceDeadline: '2026-12-31',
+                affectedEntities: ['Harbor Industrial Complex'],
+            },
+            {
+                id: 'a3', title: 'SEC Enhances ESG Disclosure Requirements',
+                source: 'Securities and Exchange Commission', date: '2026-03-05', jurisdiction: 'Federal',
+                severity: 'medium', status: 'reviewed',
+                summary: 'New SEC rules require enhanced environmental, social, and governance disclosures in annual reporting for publicly traded companies.',
+                affectedTypes: ['Annual Report', 'ESG Documentation', 'Compliance Filings'],
+                fullText: 'The SEC has finalized rules requiring standardized ESG disclosures including Scope 1 and Scope 2 greenhouse gas emissions, climate risk assessments, and board diversity metrics.',
+                effectiveDate: '2026-09-01', complianceDeadline: '2027-03-31',
+                affectedEntities: ['All Entities'],
+            },
+            {
+                id: 'a4', title: 'GDPR Enforcement Update: Increased Penalties for Data Processing Violations',
+                source: 'European Data Protection Board', date: '2026-02-28', jurisdiction: 'EU',
+                severity: 'high', status: 'new',
+                summary: 'EDPB has issued new guidelines clarifying penalty calculations for GDPR violations, with increased base fines for data processing agreement non-compliance.',
+                affectedTypes: ['Data Processing Agreement', 'Privacy Policy', 'Consent Records'],
+                fullText: 'The European Data Protection Board has published updated enforcement guidelines (Guidelines 04/2026) establishing a harmonized methodology for calculating administrative fines under Articles 83(4) and 83(5) GDPR.',
+                effectiveDate: '2026-04-15', complianceDeadline: '2026-04-15',
+                affectedEntities: ['University Research Campus'],
+            },
+            {
+                id: 'a5', title: 'FDA Updates Medical Facility Compliance Standards',
+                source: 'Food and Drug Administration', date: '2026-02-20', jurisdiction: 'Federal',
+                severity: 'medium', status: 'reviewed',
+                summary: 'FDA has released updated compliance standards for medical facilities regarding equipment maintenance documentation and patient safety protocols.',
+                affectedTypes: ['Safety Certificate', 'Equipment Logs', 'Inspection Reports'],
+                fullText: 'The FDA has updated 21 CFR Part 820 Quality System Regulation requirements for medical facilities, including enhanced documentation requirements for medical device maintenance.',
+                effectiveDate: '2026-06-01', complianceDeadline: '2026-09-01',
+                affectedEntities: ['Riverside Medical Center'],
+            },
+            {
+                id: 'a6', title: 'California SB-1234: New State Fire Safety Requirements',
+                source: 'California Legislature', date: '2026-02-15', jurisdiction: 'State - California',
+                severity: 'low', status: 'new',
+                summary: 'California Senate Bill 1234 introduces additional fire safety inspection requirements for commercial buildings over 3 stories.',
+                affectedTypes: ['Fire Safety Cert', 'Building Permit', 'Inspection Report'],
+                fullText: 'SB-1234 amends California Health and Safety Code Section 13195 to require semi-annual fire safety inspections for commercial buildings exceeding three stories, effective January 1, 2027.',
+                effectiveDate: '2027-01-01', complianceDeadline: '2027-01-01',
+                affectedEntities: ['Downtown Office Tower'],
+            },
+        ];
+
+        let allAlerts = [];
+        let filteredAlerts = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!initLayout('regulatory', 'Regulatory Monitor', 'Track regulatory changes and compliance alerts')) return;
+            await loadAlerts();
+        });
+
+        async function loadAlerts() {
+            try {
+                const res = await apiGet('/api/regulatory/feed');
+                if (res && res.ok) {
+                    const body = await res.json();
+                    const raw = body.alerts || body.feed || body;
+                    // Map API field names to frontend field names
+                    allAlerts = (Array.isArray(raw) ? raw : []).map(a => ({
+                        id: a.id || '',
+                        title: a.title || '',
+                        summary: a.summary || '',
+                        jurisdiction: a.jurisdiction || '',
+                        severity: a.severity || 'medium',
+                        status: a.status || 'new',
+                        source: a.agency || a.source || '',
+                        date: a.published_date || a.date || '',
+                        affectedTypes: a.affected_categories || a.affectedTypes || [],
+                        fullText: a.full_text || a.fullText || a.summary || '',
+                        effectiveDate: a.effective_date || a.effectiveDate || '',
+                        complianceDeadline: a.compliance_deadline || a.complianceDeadline || '',
+                        affectedEntities: a.affected_entities || a.affectedEntities || [],
+                        url: a.url || a.source_url || '',
+                    }));
+                    if (allAlerts.length === 0) throw new Error('empty');
+                } else {
+                    throw new Error('fallback');
+                }
+            } catch { allAlerts = demoAlerts; }
+            filteredAlerts = [...allAlerts];
+            renderAlerts();
+            updateStats();
+        }
+
+        function filterAlerts() {
+            const jurisdiction = document.getElementById('jurisdictionFilter').value;
+            const severity = document.getElementById('severityFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            filteredAlerts = allAlerts.filter(a => {
+                if (jurisdiction && a.jurisdiction !== jurisdiction) return false;
+                if (severity && a.severity !== severity) return false;
+                if (status && a.status !== status) return false;
+                return true;
+            });
+            renderAlerts();
+        }
+
+        function updateStats() {
+            document.getElementById('newAlerts').textContent = allAlerts.filter(a => a.status === 'new').length;
+            document.getElementById('underReview').textContent = allAlerts.filter(a => a.status === 'reviewed').length;
+            const jurisdictions = new Set(allAlerts.map(a => a.jurisdiction));
+            document.getElementById('jurisdictions').textContent = jurisdictions.size;
+        }
+
+        function renderAlerts() {
+            document.getElementById('resultsCount').textContent = `${filteredAlerts.length} alert${filteredAlerts.length !== 1 ? 's' : ''}`;
+            const list = document.getElementById('alertList');
+            list.innerHTML = filteredAlerts.map(a => `
+                <div class="alert-card" id="alert-${a.id}" onclick="toggleAlert('${a.id}')">
+                    <div class="alert-card-header">
+                        <div class="alert-severity-bar ${a.severity}"></div>
+                        <div class="alert-content">
+                            <div class="alert-title-row">
+                                <span class="alert-title">${a.title}</span>
+                            </div>
+                            <div class="alert-meta">
+                                <span class="jurisdiction-badge">${a.jurisdiction}</span>
+                                <span class="severity-pill ${a.severity}">${a.severity.charAt(0).toUpperCase() + a.severity.slice(1)}</span>
+                                <span class="alert-source">${a.source}</span>
+                                <span class="alert-date">${formatDate(a.date)}</span>
+                                ${a.status === 'new' ? '<span class="pill pill-danger pill-dot">New</span>' : a.status === 'reviewed' ? '<span class="pill pill-info">Reviewed</span>' : '<span class="pill pill-neutral">Dismissed</span>'}
+                            </div>
+                            <div class="alert-summary">${a.summary}</div>
+                            <div class="alert-tags">
+                                ${a.affectedTypes.map(t => `<span class="alert-tag">${t}</span>`).join('')}
+                            </div>
+                            <div class="alert-actions">
+                                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); reviewAlert('${a.id}')">Review</button>
+                                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dismissAlert('${a.id}')">Dismiss</button>
+                                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); viewSource('${a.id}')">View Source</button>
+                            </div>
+                            <div class="alert-details">
+                                <div class="alert-detail-grid">
+                                    <div><div class="alert-detail-label">Effective Date</div><div class="alert-detail-value">${formatDate(a.effectiveDate)}</div></div>
+                                    <div><div class="alert-detail-label">Compliance Deadline</div><div class="alert-detail-value">${formatDate(a.complianceDeadline)}</div></div>
+                                    <div><div class="alert-detail-label">Affected Entities</div><div class="alert-detail-value">${(a.affectedEntities || []).join(', ')}</div></div>
+                                    <div><div class="alert-detail-label">Source</div><div class="alert-detail-value">${a.source}</div></div>
+                                </div>
+                                <div class="alert-full-text">${a.fullText || a.summary}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleAlert(id) {
+            const card = document.getElementById(`alert-${id}`);
+            card.classList.toggle('expanded');
+        }
+
+        function reviewAlert(id) {
+            const alert = allAlerts.find(a => a.id === id);
+            if (alert) { alert.status = 'reviewed'; renderAlerts(); updateStats(); showToast('Alert marked as reviewed', 'success'); }
+        }
+
+        function dismissAlert(id) {
+            const alert = allAlerts.find(a => a.id === id);
+            if (alert) { alert.status = 'dismissed'; renderAlerts(); updateStats(); showToast('Alert dismissed', 'info'); }
+        }
+
+        function viewSource(id) { showToast('Opening source document... (demo)', 'info'); }
+    </script>
+</body>
+</html>

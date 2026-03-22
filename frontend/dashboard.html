@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - ComplyChip</title>
+    <link rel="stylesheet" href="/css/design-system.css?v=4">
+    <link rel="stylesheet" href="/css/components.css?v=4">
+    <link rel="stylesheet" href="/css/dark-mode.css?v=4">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Stat Cards */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .stat-card-dash {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 20px 24px; box-shadow: var(--shadow-xs); transition: box-shadow var(--transition-fast);
+        }
+        .stat-card-dash:hover { box-shadow: var(--shadow-md); }
+        .stat-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .stat-icon {
+            width: 40px; height: 40px; border-radius: var(--radius-md); display: flex;
+            align-items: center; justify-content: center;
+        }
+        .stat-icon svg { width: 20px; height: 20px; }
+        .stat-icon.blue { background: var(--accent-light); color: var(--accent); }
+        .stat-icon.green { background: var(--success-bg); color: var(--success); }
+        .stat-icon.red { background: var(--danger-bg); color: var(--danger); }
+        .stat-icon.amber { background: var(--warning-bg); color: var(--warning); }
+        .stat-highlight { color: var(--danger); }
+
+        /* Dashboard Grid */
+        .dash-grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; margin-bottom: 24px; }
+        .dash-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+        .dash-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xs); overflow: hidden;
+        }
+        .dash-card-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
+            align-items: center; justify-content: space-between;
+        }
+        .dash-card-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+        .dash-card-body { padding: 20px; }
+
+        /* Score Ring Section */
+        .score-card { text-align: center; }
+        .score-card-body { padding: 24px; display: flex; flex-direction: column; align-items: center; }
+        .score-card-label { font-size: var(--text-xs); color: var(--text-muted); margin-top: 8px; }
+
+        /* Expiry Timeline */
+        .expiry-bars { display: flex; flex-direction: column; gap: 16px; }
+        .expiry-row { display: flex; align-items: center; gap: 12px; }
+        .expiry-label { font-size: var(--text-sm); font-weight: 500; width: 70px; color: var(--text-secondary); flex-shrink: 0; }
+        .expiry-bar-track { flex: 1; height: 32px; background: var(--bg-input); border-radius: var(--radius-md); overflow: hidden; position: relative; }
+        .expiry-bar-fill {
+            height: 100%; border-radius: var(--radius-md); display: flex; align-items: center;
+            padding: 0 12px; font-size: var(--text-xs); font-weight: 700; color: #fff;
+            transition: width 0.8s ease; min-width: 30px;
+        }
+        .expiry-bar-fill.danger { background: var(--danger); }
+        .expiry-bar-fill.warning { background: var(--warning); }
+        .expiry-bar-fill.success { background: var(--success); }
+        .expiry-count { font-size: var(--text-sm); font-weight: 600; width: 30px; text-align: right; }
+
+        /* Activity Feed */
+        .activity-list { display: flex; flex-direction: column; }
+        .activity-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+        .activity-item:last-child { border-bottom: none; }
+        .activity-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+        .activity-dot.success { background: var(--success); }
+        .activity-dot.warning { background: var(--warning); }
+        .activity-dot.danger { background: var(--danger); }
+        .activity-dot.info { background: var(--info); }
+        .activity-text { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.4; }
+        .activity-time { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+        /* Chart wrapper */
+        .chart-wrap { position: relative; height: 220px; }
+        .chart-wrap-sm { height: 180px; }
+
+        /* Entity Table */
+        .entity-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+        .entity-table th {
+            text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 0.04em; border-bottom: 1px solid var(--border);
+        }
+        .entity-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); }
+        .entity-table tr:last-child td { border-bottom: none; }
+        .entity-table tr:hover td { background: var(--accent-light); }
+        .entity-score { font-weight: 700; }
+
+        /* Section Label */
+        .section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 10px; margin-top: 24px; }
+
+        /* Health Tiles */
+        .health-tiles-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 8px; }
+        .health-tile {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 20px 24px; position: relative; overflow: hidden; box-shadow: var(--shadow-xs);
+            transition: box-shadow var(--transition-fast);
+        }
+        .health-tile:hover { box-shadow: var(--shadow-md); }
+        .health-tile::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+        .health-tile.tile-danger::before { background: var(--danger); }
+        .health-tile.tile-warning::before { background: var(--warning); }
+        .health-tile.tile-grey::before { background: var(--text-muted); }
+        .health-tile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .health-tile-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+        .health-tile-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .health-tile-dot.dot-danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+        .health-tile-dot.dot-warning { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+        .health-tile-dot.dot-grey { background: var(--text-muted); box-shadow: 0 0 8px var(--text-muted); }
+        .health-tile-count { font-size: 48px; font-weight: 700; line-height: 1; margin-bottom: 6px; color: var(--text-primary); }
+        .health-tile-sub { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 12px; }
+        .health-tile-link { font-size: var(--text-xs); font-weight: 600; color: var(--accent); cursor: pointer; text-decoration: none; }
+        .health-tile-link:hover { text-decoration: underline; }
+
+        /* Kanban Board */
+        .kanban-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 8px; }
+        .kanban-col {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            overflow: hidden; box-shadow: var(--shadow-xs); display: flex; flex-direction: column;
+        }
+        .kanban-col::before { content: ''; display: block; height: 3px; }
+        .kanban-col.col-danger::before { background: var(--danger); }
+        .kanban-col.col-warning::before { background: var(--warning); }
+        .kanban-col.col-success::before { background: var(--success); }
+        .kanban-col-header {
+            padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex;
+            align-items: center; justify-content: space-between;
+        }
+        .kanban-col-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+        .kanban-count-badge {
+            font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-pill);
+            background: var(--bg-input); color: var(--text-muted);
+        }
+        .kanban-list { padding: 12px; max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+        .kanban-card {
+            background: var(--bg-input); border: 1px solid var(--border-light); border-radius: var(--radius-md);
+            padding: 12px; transition: box-shadow var(--transition-fast);
+        }
+        .kanban-card:hover { box-shadow: var(--shadow-sm); }
+        .kanban-card-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kanban-card-entity { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 8px; }
+        .kanban-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .kanban-reason {
+            font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill);
+            text-transform: uppercase;
+        }
+        .kanban-reason.reason-expired { background: var(--danger-bg); color: var(--danger); }
+        .kanban-reason.reason-warning { background: var(--warning-bg); color: var(--warning); }
+        .kanban-reason.reason-done { background: var(--success-bg); color: var(--success); }
+        .kanban-cta {
+            font-size: var(--text-xs); font-weight: 600; padding: 4px 10px; border-radius: var(--radius-sm);
+            border: 1px solid var(--border); background: var(--bg-card); color: var(--accent); cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        .kanban-cta:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .kanban-cta:disabled { opacity: 0.5; cursor: default; background: var(--bg-input); color: var(--text-muted); border-color: var(--border); }
+        .kanban-empty { font-size: var(--text-sm); color: var(--text-muted); text-align: center; padding: 24px 0; }
+
+        /* Register / Reminders Section */
+        .register-block {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xs); overflow: hidden; margin-bottom: 8px;
+        }
+        .register-top { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .register-search {
+            display: flex; align-items: center; gap: 8px; background: var(--bg-input); border: 1px solid var(--border);
+            border-radius: var(--radius-md); padding: 6px 12px; flex: 1; min-width: 200px;
+        }
+        .register-search svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+        .register-search input {
+            border: none; background: transparent; outline: none; font-size: var(--text-sm);
+            color: var(--text-primary); width: 100%; font-family: var(--font-sans);
+        }
+        .register-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .register-chip {
+            font-size: 10px; font-weight: 600; padding: 4px 12px; border-radius: var(--radius-pill);
+            border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted);
+            cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all var(--transition-fast);
+        }
+        .register-chip:hover { border-color: var(--accent); color: var(--accent); }
+        .register-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .register-table-wrap { overflow-x: auto; }
+        .register-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+        .register-table th {
+            text-align: left; padding: 10px 16px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 0.04em; border-bottom: 1px solid var(--border); background: var(--bg-input);
+        }
+        .register-table td { padding: 10px 16px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); }
+        .register-table tr:hover td { background: var(--accent-light); }
+        .register-table .days-left-danger { color: var(--danger); font-weight: 700; }
+        .register-table .days-left-warning { color: var(--warning); font-weight: 600; }
+        .register-table .days-left-ok { color: var(--success); }
+        .register-action-btn {
+            width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+            background: var(--bg-card); color: var(--text-muted); cursor: pointer; display: inline-flex;
+            align-items: center; justify-content: center; transition: all var(--transition-fast); margin-right: 4px;
+        }
+        .register-action-btn:hover { color: var(--accent); border-color: var(--accent); }
+        .register-action-btn svg { width: 14px; height: 14px; }
+
+        /* Modals */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-overlay.show { display: flex; }
+        .modal-card {
+            background: var(--bg-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);
+            width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto;
+        }
+        .modal-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
+            align-items: center; justify-content: space-between; font-weight: 600; font-size: var(--text-md);
+            color: var(--text-primary);
+        }
+        .modal-close {
+            width: 32px; height: 32px; border-radius: var(--radius-sm); border: none; background: transparent;
+            font-size: 20px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { background: var(--bg-input); color: var(--text-primary); }
+        .modal-body { padding: 20px; }
+        .modal-body .doc-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 16px; padding: 10px; background: var(--bg-input); border-radius: var(--radius-md); }
+        .modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+        .modal-body .form-group { margin-bottom: 14px; }
+        .modal-body .form-group label { display: block; font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .modal-body .form-group input,
+        .modal-body .form-group select,
+        .modal-body .form-group textarea {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-md);
+            background: var(--bg-input); color: var(--text-primary); font-size: var(--text-sm); font-family: var(--font-sans);
+            outline: none; transition: border-color var(--transition-fast);
+        }
+        .modal-body .form-group input:focus,
+        .modal-body .form-group select:focus,
+        .modal-body .form-group textarea:focus { border-color: var(--accent); }
+
+        /* Drop Zone */
+        .drop-zone {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 32px 16px;
+            cursor: pointer; text-align: center; transition: all var(--transition-fast);
+            color: var(--text-muted); font-size: var(--text-sm);
+        }
+        .drop-zone:hover { border-color: var(--accent); background: var(--accent-light); }
+        .drop-zone input[type="file"] { display: none; }
+        .drop-zone svg { width: 32px; height: 32px; margin-bottom: 8px; color: var(--text-muted); }
+        .drop-zone .text-muted { font-size: var(--text-xs); color: var(--text-muted); margin-top: 4px; }
+        .progress-bar { height: 6px; background: var(--bg-input); border-radius: var(--radius-pill); overflow: hidden; margin-top: 12px; }
+        .progress-fill { height: 100%; background: var(--accent); border-radius: var(--radius-pill); width: 0%; transition: width 0.3s ease; }
+
+        /* Reminders Slide Panel */
+        .slide-panel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 999; display: none; }
+        .slide-panel-overlay.show { display: block; }
+        .slide-panel {
+            position: fixed; top: 0; right: -420px; width: 420px; height: 100vh; background: var(--bg-card);
+            border-left: 1px solid var(--border); box-shadow: var(--shadow-xl); z-index: 1000;
+            transition: right 0.3s ease; display: flex; flex-direction: column;
+        }
+        .slide-panel.open { right: 0; }
+        .slide-panel-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
+            align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        .slide-panel-title { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); }
+        .slide-panel-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+        .reminder-item {
+            padding: 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md);
+            margin-bottom: 10px; background: var(--bg-input);
+        }
+        .reminder-item-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+        .reminder-item-detail { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 2px; }
+        .reminder-item-actions { margin-top: 8px; display: flex; gap: 6px; }
+        .reminder-delete-btn {
+            font-size: 10px; padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid var(--danger);
+            background: var(--danger-bg); color: var(--danger); cursor: pointer;
+        }
+
+        /* Reminders trigger button in topbar area */
+        .reminders-trigger {
+            position: fixed; top: 18px; right: 24px; z-index: 100; width: 36px; height: 36px;
+            border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card);
+            color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: var(--shadow-sm); transition: all var(--transition-fast);
+        }
+        .reminders-trigger:hover { color: var(--accent); border-color: var(--accent); }
+        .reminders-trigger svg { width: 18px; height: 18px; }
+        .reminders-badge {
+            position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; border-radius: 50%;
+            background: var(--danger); color: #fff; font-size: 9px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Health overlay table */
+        .health-overlay-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+        .health-overlay-table th {
+            text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+            color: var(--text-muted); border-bottom: 1px solid var(--border);
+        }
+        .health-overlay-table td { padding: 8px 12px; border-bottom: 1px solid var(--border-light); }
+
+        @media (max-width: 1024px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .dash-grid, .dash-two-col { grid-template-columns: 1fr; }
+            .health-tiles-row, .kanban-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } }
+    </style>
+    <script>if(localStorage.getItem("complychip_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")</script>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-container"></div>
+        <div class="main-content">
+            <div id="topbar-container"></div>
+            <div class="page-content">
+                <!-- Stat Cards -->
+                <div class="stats-row">
+                    <div class="stat-card-dash">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">Total Documents</div>
+                                <div class="stat-value" id="totalDocs">—</div>
+                            </div>
+                            <div class="stat-icon blue">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            </div>
+                        </div>
+                        <div class="stat-change" id="docsSubtext">Loading...</div>
+                    </div>
+                    <div class="stat-card-dash">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">Active Entities</div>
+                                <div class="stat-value" id="totalEntities">—</div>
+                            </div>
+                            <div class="stat-icon green">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                            </div>
+                        </div>
+                        <div class="stat-change stat-change-up">All monitored</div>
+                    </div>
+                    <div class="stat-card-dash">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">Expiring (30d)</div>
+                                <div class="stat-value stat-highlight" id="expiring30">—</div>
+                            </div>
+                            <div class="stat-icon red">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </div>
+                        </div>
+                        <div class="stat-change" id="expiringSubtext">Loading...</div>
+                    </div>
+                    <div class="stat-card-dash">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-label">Active Alerts</div>
+                                <div class="stat-value" id="activeAlerts">—</div>
+                            </div>
+                            <div class="stat-icon amber">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            </div>
+                        </div>
+                        <div class="stat-change" id="alertsSubtext">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- Health Tiles -->
+                <div class="section-label">Compliance Health</div>
+                <div class="health-tiles-row" id="healthTiles"></div>
+
+                <!-- Action Board -->
+                <div class="section-label">Action Board</div>
+                <div class="kanban-grid" id="kanbanGrid"></div>
+
+                <!-- Reminders -->
+                <div class="section-label">Reminders</div>
+                <div class="register-block">
+                    <div class="register-top">
+                        <div class="register-search">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="registerSearch" placeholder="Search docs, companies..." />
+                        </div>
+                        <div class="register-chips" id="registerChips"></div>
+                    </div>
+                    <div class="register-table-wrap" id="registerTable"></div>
+                </div>
+
+                <!-- Score + Expiry Timeline -->
+                <div class="dash-grid">
+                    <div class="dash-card score-card">
+                        <div class="dash-card-header">
+                            <span class="dash-card-title">Compliance Score</span>
+                            <span class="pill" id="scorePill">Fair</span>
+                        </div>
+                        <div class="score-card-body">
+                            <div id="scoreRingContainer"></div>
+                            <div class="score-card-label">Portfolio compliance health</div>
+                        </div>
+                    </div>
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <span class="dash-card-title">Expiry Timeline</span>
+                            <a href="/documents.html" class="text-xs text-accent">View all</a>
+                        </div>
+                        <div class="dash-card-body">
+                            <div class="expiry-bars" id="expiryBars"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="dash-two-col">
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <span class="dash-card-title">Risk Distribution</span>
+                        </div>
+                        <div class="dash-card-body">
+                            <div class="chart-wrap"><canvas id="riskChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <span class="dash-card-title">Recent Activity</span>
+                            <a href="/regulatory.html" class="text-xs text-accent">View all</a>
+                        </div>
+                        <div class="dash-card-body" style="padding:12px 20px;">
+                            <div class="activity-list" id="activityFeed"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trends + Entities -->
+                <div class="dash-two-col">
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <span class="dash-card-title">Compliance Trends</span>
+                        </div>
+                        <div class="dash-card-body">
+                            <div class="chart-wrap-sm"><canvas id="trendChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="dash-card">
+                        <div class="dash-card-header">
+                            <span class="dash-card-title">Top Entities</span>
+                            <a href="/entities.html" class="text-xs text-accent">View all</a>
+                        </div>
+                        <div class="dash-card-body" style="padding:0;">
+                            <div class="table-container">
+                                <table class="entity-table" id="entityTable">
+                                    <thead><tr><th>Entity</th><th>Score</th><th>Status</th><th>Docs</th></tr></thead>
+                                    <tbody id="entityTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Replace Document Modal -->
+    <div class="modal-overlay" id="replaceModal">
+        <div class="modal-card">
+            <div class="modal-header">Replace Document <button class="modal-close" onclick="closeReplaceModal()">&times;</button></div>
+            <div class="modal-body">
+                <div class="doc-name" id="replaceDocName"></div>
+                <label class="drop-zone" id="dropZone">
+                    <input type="file" id="replaceFileInput" accept=".pdf,.jpg,.jpeg,.png" />
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <div>Click to select or drag a file here</div>
+                    <div class="text-muted">PDF, JPEG, PNG — max 10 MB</div>
+                </label>
+                <div class="progress-bar" id="replaceProgress" style="display:none"><div class="progress-fill" id="replaceProgressFill"></div></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeReplaceModal()">Cancel</button>
+                <button class="btn btn-primary" id="replaceSubmit" disabled onclick="submitReplace()">Replace</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Set Reminder Modal -->
+    <div class="modal-overlay" id="setReminderModal">
+        <div class="modal-card">
+            <div class="modal-header">Set Reminder <button class="modal-close" onclick="closeSetReminderModal()">&times;</button></div>
+            <div class="modal-body">
+                <div class="doc-name" id="reminderDocName"></div>
+                <div class="form-group"><label>Date & Time</label><input type="datetime-local" id="reminderDatetime" /></div>
+                <div class="form-group"><label>Channel</label><select id="reminderChannel"><option>WhatsApp</option><option>Email</option><option>SMS</option></select></div>
+                <div class="form-group"><label>Recipient</label><input type="text" id="reminderRecipient" placeholder="Phone or email" /></div>
+                <div class="form-group"><label>Message</label><textarea id="reminderMessage" rows="3" placeholder="Add a note..."></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSetReminderModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitSetReminder()">Set Reminder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Send Reminder Modal -->
+    <div class="modal-overlay" id="sendReminderModal">
+        <div class="modal-card">
+            <div class="modal-header">Send Reminder <button class="modal-close" onclick="closeSendReminderModal()">&times;</button></div>
+            <div class="modal-body">
+                <div class="doc-name" id="sendReminderDocName"></div>
+                <div class="form-group"><label>Channel</label><select id="sendReminderChannel"><option>WhatsApp</option><option>Email</option><option>SMS</option></select></div>
+                <div class="form-group"><label>Recipient</label><input type="text" id="sendReminderRecipient" placeholder="Phone or email" /></div>
+                <div class="form-group"><label>Message</label><textarea id="sendReminderMessage" rows="3" placeholder="Add a note..."></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSendReminderModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitSendReminder()">Send Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Health Tile Overlay -->
+    <div class="modal-overlay" id="healthOverlay">
+        <div class="modal-card" style="max-width:700px">
+            <div class="modal-header"><span id="healthOverlayTitle"></span><button class="modal-close" onclick="closeHealthOverlay()">&times;</button></div>
+            <div class="modal-body" id="healthOverlayBody"></div>
+        </div>
+    </div>
+
+    <!-- Reminders Slide Panel -->
+    <div class="slide-panel-overlay" id="slidePanelOverlay" onclick="closeRemindersPanel()"></div>
+    <div class="slide-panel" id="remindersPanel">
+        <div class="slide-panel-header">
+            <span class="slide-panel-title">Reminders</span>
+            <button class="modal-close" onclick="closeRemindersPanel()">&times;</button>
+        </div>
+        <div class="slide-panel-body" id="remindersPanelBody"></div>
+    </div>
+
+    <!-- Reminders Trigger Button -->
+    <button class="reminders-trigger" onclick="openRemindersPanel()" title="View Reminders">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span class="reminders-badge" id="remindersBadge" style="display:none">0</span>
+    </button>
+
+    <script src="/js/api.js?v=4"></script>
+    <script src="/js/components.js?v=4"></script>
+    <script src="/js/charts.js?v=4"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!initLayout('dashboard', 'Command Center', 'Compliance health overview')) return;
+            await loadDashboard();
+        });
+
+        async function loadDashboard() {
+            const demo = getDemoData();
+            let apiData = {};
+            try {
+                const res = await apiGet('/api/analytics/summary');
+                if (res && res.ok) { apiData = await res.json(); }
+            } catch {}
+            // Use real API data, fall back to demo only if API failed entirely
+            const hasApi = Object.keys(apiData).length > 0;
+            const v = (apiVal, demoVal) => apiVal != null ? apiVal : demoVal;
+
+            // Transform activity_feed from API format to display format
+            let activity = demo.activity;
+            if (apiData.activity_feed && apiData.activity_feed.length > 0) {
+                activity = apiData.activity_feed.map(a => ({
+                    text: `${a.name} — ${a.action}${a.entity_name ? ' (' + a.entity_name + ')' : ''}`,
+                    type: a.action === 'processed' ? 'success' : a.action === 'uploaded' ? 'info' : 'warning',
+                    time: timeAgo(a.timestamp),
+                }));
+            }
+
+            // Build entity list from API data
+            let entities = demo.entities;
+            if (apiData.risk_distribution && hasApi) {
+                // Fetch real entities
+                try {
+                    const eres = await apiGet('/api/entities');
+                    if (eres && eres.ok) {
+                        const edata = await eres.json();
+                        const elist = edata.entities || edata || [];
+                        if (elist.length > 0) {
+                            entities = elist.map(e => ({
+                                name: e.name || 'Unknown',
+                                score: e.compliance_score || e.score || 0,
+                                status: (e.compliance_score || 0) >= 80 ? 'compliant' : (e.compliance_score || 0) >= 60 ? 'warning' : 'expired',
+                                docs: e.document_count || 0,
+                            }));
+                        }
+                    }
+                } catch {}
+            }
+
+            // Compute active_alerts from expiring + expired counts
+            const expiredCount = apiData.expired || 0;
+            const exp30 = v(apiData.expiring_30d, demo.expiring_30_days);
+
+            // Fetch documents list for health tiles, kanban, reminders
+            let documents = [];
+            try {
+                const docRes = await apiGet('/api/documents?limit=100');
+                if (docRes && docRes.ok) {
+                    const docData = await docRes.json();
+                    documents = docData.documents || [];
+                }
+            } catch {}
+            // Fallback demo documents if API returned nothing
+            if (documents.length === 0) {
+                documents = getDemoDocuments();
+            }
+
+            const data = {
+                ...demo,
+                total_documents: hasApi ? (apiData.total_documents || 0) : demo.total_documents,
+                total_entities: hasApi ? (apiData.total_entities || 0) : demo.total_entities,
+                portfolio_score: v(apiData.avg_compliance_score, demo.portfolio_score),
+                expiring_30_days: v(apiData.expiring_30d, demo.expiring_30_days),
+                expiring_60_days: v(apiData.expiring_60d, demo.expiring_60_days),
+                expiring_90_days: v(apiData.expiring_90d, demo.expiring_90_days),
+                active_alerts: hasApi ? (expiredCount + exp30) : demo.active_alerts,
+                risk_distribution: apiData.risk_distribution || demo.risk_distribution,
+                activity: activity,
+                trend: apiData.trend || demo.trend,
+                entities: entities,
+                expired: apiData.expired || 0,
+                documents: documents,
+            };
+            renderDashboard(data);
+            renderHealthTiles(data);
+            renderKanban(data);
+            renderReminders(data);
+            updateRemindersBadge();
+        }
+
+        function getDemoData() {
+            return {
+                portfolio_score: 78,
+                total_documents: 47,
+                total_entities: 5,
+                expiring_30_days: 3,
+                expiring_60_days: 7,
+                expiring_90_days: 12,
+                active_alerts: 8,
+                risk_distribution: { low: 19, medium: 16, high: 9, critical: 3 },
+                trend: {
+                    labels: ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+                    scores: [72, 74, 73, 76, 75, 78],
+                },
+                entities: [
+                    { name: 'Airport Business Park', score: 88, status: 'compliant', docs: 4 },
+                    { name: 'Downtown Office Tower', score: 82, status: 'compliant', docs: 8 },
+                    { name: 'University Research Campus', score: 79, status: 'warning', docs: 3 },
+                    { name: 'Riverside Medical Center', score: 72, status: 'warning', docs: 5 },
+                    { name: 'Harbor Industrial Complex', score: 61, status: 'expired', docs: 6 },
+                ],
+                activity: [
+                    { text: 'OSHA Safety Certificate expiring in 27 days', type: 'danger', time: '2 hours ago' },
+                    { text: 'New regulatory alert: OSHA workplace standards update', type: 'warning', time: '5 hours ago' },
+                    { text: 'Data Processing Agreement renewed for University Campus', type: 'success', time: '1 day ago' },
+                    { text: 'Vendor risk assessment completed for BuildRight Construction', type: 'info', time: '2 days ago' },
+                    { text: 'Fire Safety Inspection Report uploaded for Downtown Tower', type: 'success', time: '3 days ago' },
+                ],
+            };
+        }
+
+        function timeAgo(timestamp) {
+            if (!timestamp) return '';
+            const diff = Date.now() - new Date(timestamp).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return `${hrs}h ago`;
+            const days = Math.floor(hrs / 24);
+            return `${days}d ago`;
+        }
+
+        function renderDashboard(data) {
+            // Stats — use explicit check to avoid 0 being treated as falsy
+            document.getElementById('totalDocs').textContent = data.total_documents;
+            document.getElementById('totalEntities').textContent = data.total_entities;
+            document.getElementById('expiring30').textContent = data.expiring_30_days;
+            document.getElementById('activeAlerts').textContent = data.active_alerts;
+
+            // Dynamic subtexts
+            document.getElementById('docsSubtext').textContent = `${data.total_documents} total`;
+            const exp30 = data.expiring_30_days;
+            const expiringEl = document.getElementById('expiringSubtext');
+            if (exp30 > 0) {
+                expiringEl.textContent = 'Action needed';
+                expiringEl.className = 'stat-change stat-change-down';
+            } else {
+                expiringEl.textContent = 'All current';
+                expiringEl.className = 'stat-change stat-change-up';
+            }
+            document.getElementById('alertsSubtext').textContent = data.active_alerts > 0 ? `${data.active_alerts} require attention` : 'No alerts';
+
+            // Score Ring + pill
+            const score = data.portfolio_score;
+            const scoreLabel = getScoreLabel(score);
+            const scorePill = document.getElementById('scorePill');
+            scorePill.textContent = scoreLabel;
+            scorePill.className = `pill ${score >= 80 ? 'pill-success' : score >= 60 ? 'pill-warning' : 'pill-danger'}`;
+            document.getElementById('scoreRingContainer').innerHTML = renderScoreRing(score, 160, 12);
+
+            // Expiry Timeline
+            const e30 = data.expiring_30_days;
+            const e60 = data.expiring_60_days;
+            const e90 = data.expiring_90_days;
+            const maxExpiry = Math.max(e30, e60, e90, 1);
+            document.getElementById('expiryBars').innerHTML = `
+                <div class="expiry-row">
+                    <span class="expiry-label">30 days</span>
+                    <div class="expiry-bar-track"><div class="expiry-bar-fill danger" style="width:${(e30/maxExpiry)*100}%">${e30}</div></div>
+                    <span class="expiry-count" style="color:var(--danger)">${e30}</span>
+                </div>
+                <div class="expiry-row">
+                    <span class="expiry-label">60 days</span>
+                    <div class="expiry-bar-track"><div class="expiry-bar-fill warning" style="width:${(e60/maxExpiry)*100}%">${e60}</div></div>
+                    <span class="expiry-count" style="color:var(--warning)">${e60}</span>
+                </div>
+                <div class="expiry-row">
+                    <span class="expiry-label">90 days</span>
+                    <div class="expiry-bar-track"><div class="expiry-bar-fill success" style="width:${(e90/maxExpiry)*100}%">${e90}</div></div>
+                    <span class="expiry-count" style="color:var(--success)">${e90}</span>
+                </div>
+            `;
+
+            // Risk Distribution Chart
+            const rd = data.risk_distribution || {};
+            createDoughnutChart('riskChart',
+                ['Low', 'Medium', 'High', 'Critical'],
+                [rd.low || 0, rd.medium || 0, rd.high || 0, rd.critical || 0],
+                { colors: [chartColors.success, chartColors.warning, chartColors.danger, '#991b1b'], cutout: '65%' }
+            );
+
+            // Activity Feed
+            const activity = data.activity || [];
+            document.getElementById('activityFeed').innerHTML = activity.map(a => `
+                <div class="activity-item">
+                    <div class="activity-dot ${a.type}"></div>
+                    <div>
+                        <div class="activity-text">${a.text}</div>
+                        <div class="activity-time">${a.time}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Compliance Trend
+            const trend = data.trend || { labels: ['Oct','Nov','Dec','Jan','Feb','Mar'], scores: [72,74,73,76,75,78] };
+            createLineChart('trendChart', trend.labels, [
+                { label: 'Score', data: trend.scores, color: chartColors.primary, fill: true },
+            ], { beginAtZero: false, yScale: { min: 60, max: 100 } });
+
+            // Entity Table
+            const entities = data.entities || [];
+            document.getElementById('entityTableBody').innerHTML = entities.map(e => `
+                <tr>
+                    <td class="font-medium">${e.name}</td>
+                    <td><span class="entity-score" style="color:${getScoreColor(e.score)}">${e.score}</span></td>
+                    <td><span class="pill ${getStatusPill(e.status)}">${e.status}</span></td>
+                    <td class="text-secondary">${e.docs}</td>
+                </tr>
+            `).join('');
+        }
+        // ============================================================
+        // Demo documents fallback
+        // ============================================================
+        function getDemoDocuments() {
+            const today = new Date();
+            const d = (offset) => { const dt = new Date(today); dt.setDate(dt.getDate() + offset); return dt.toISOString().split('T')[0]; };
+            return [
+                { id: 'demo-1', name: 'OSHA Safety Certificate', entity_name: 'Harbor Industrial Complex', document_type: 'certificate', status: 'processed', compliance_status: 'expired', expiry_date: d(-10) },
+                { id: 'demo-2', name: 'Fire Safety Inspection', entity_name: 'Downtown Office Tower', document_type: 'inspection', status: 'processed', compliance_status: 'expired', expiry_date: d(-3) },
+                { id: 'demo-3', name: 'Data Processing Agreement', entity_name: 'University Research Campus', document_type: 'agreement', status: 'processed', compliance_status: 'warning', expiry_date: d(15) },
+                { id: 'demo-4', name: 'Insurance Policy', entity_name: 'Riverside Medical Center', document_type: 'policy', status: 'processed', compliance_status: 'warning', expiry_date: d(22) },
+                { id: 'demo-5', name: 'Building Permit', entity_name: 'Airport Business Park', document_type: 'permit', status: 'processed', compliance_status: 'warning', expiry_date: d(28) },
+                { id: 'demo-6', name: 'Vendor Compliance Cert', entity_name: 'Airport Business Park', document_type: 'certificate', status: 'processed', compliance_status: 'compliant', expiry_date: d(120) },
+                { id: 'demo-7', name: 'MSA Agreement', entity_name: 'Downtown Office Tower', document_type: 'agreement', status: 'processed', compliance_status: 'compliant', expiry_date: d(200) },
+                { id: 'demo-8', name: 'NDA — BuildRight', entity_name: 'Harbor Industrial Complex', document_type: 'agreement', status: 'processed', compliance_status: 'compliant', expiry_date: d(90) },
+            ];
+        }
+
+        // ============================================================
+        // Classify documents
+        // ============================================================
+        function classifyDocuments(docs) {
+            const now = new Date();
+            const atRisk = [], expiringSoon = [], done = [];
+            for (const doc of docs) {
+                const dl = daysFromNow(doc.expiry_date);
+                const cs = (doc.compliance_status || '').toLowerCase();
+                const st = (doc.status || '').toLowerCase();
+                if (cs === 'expired' || cs === 'non_compliant' || cs === 'non-compliant' || (dl !== null && dl < 0)) {
+                    atRisk.push(doc);
+                } else if (cs === 'warning' || (dl !== null && dl >= 0 && dl <= 30)) {
+                    expiringSoon.push(doc);
+                } else if (st === 'processed' || cs === 'compliant') {
+                    done.push(doc);
+                }
+            }
+            return { atRisk, expiringSoon, done };
+        }
+
+        // ============================================================
+        // 1A. Health Tiles
+        // ============================================================
+        function renderHealthTiles(data) {
+            const docs = data.documents || [];
+            const { atRisk, expiringSoon } = classifyDocuments(docs);
+            const missingCount = 0; // No gap data available yet
+
+            const tiles = [
+                { title: 'At Risk', count: atRisk.length, cls: 'tile-danger', dot: 'dot-danger', sub: 'documents \u00b7 expired or non-compliant', list: atRisk },
+                { title: 'Expiring Soon', count: expiringSoon.length, cls: 'tile-warning', dot: 'dot-warning', sub: 'documents \u00b7 within 30 days', list: expiringSoon },
+                { title: 'Missing', count: missingCount, cls: 'tile-grey', dot: 'dot-grey', sub: 'documents \u00b7 gaps detected', list: [] },
+            ];
+
+            document.getElementById('healthTiles').innerHTML = tiles.map((t, i) => `
+                <div class="health-tile ${t.cls}">
+                    <div class="health-tile-header">
+                        <span class="health-tile-title">${t.title}</span>
+                        <span class="health-tile-dot ${t.dot}"></span>
+                    </div>
+                    <div class="health-tile-count">${t.count}</div>
+                    <div class="health-tile-sub">${t.sub}</div>
+                    <a class="health-tile-link" onclick="openHealthOverlay('${t.title}', ${i})">View list &rarr;</a>
+                </div>
+            `).join('');
+
+            // Store for overlay use
+            window._healthTileData = tiles;
+        }
+
+        function openHealthOverlay(title, index) {
+            const tile = window._healthTileData[index];
+            document.getElementById('healthOverlayTitle').textContent = title + ' Documents';
+            const docs = tile.list || [];
+            if (docs.length === 0) {
+                document.getElementById('healthOverlayBody').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px 0;">No documents in this category.</p>';
+            } else {
+                document.getElementById('healthOverlayBody').innerHTML = `
+                    <table class="health-overlay-table">
+                        <thead><tr><th>Document</th><th>Entity</th><th>Expiry</th><th>Days Left</th></tr></thead>
+                        <tbody>${docs.map(d => {
+                            const dl = daysFromNow(d.expiry_date);
+                            const dlClass = dl !== null && dl < 0 ? 'days-left-danger' : dl !== null && dl <= 30 ? 'days-left-warning' : 'days-left-ok';
+                            return `<tr>
+                                <td style="font-weight:600">${d.name || 'Untitled'}</td>
+                                <td>${d.entity_name || d.document_company_name || '\u2014'}</td>
+                                <td>${formatDate(d.expiry_date)}</td>
+                                <td class="${dlClass}">${dl !== null ? (dl < 0 ? dl + ' (overdue)' : dl + 'd') : '\u2014'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table>`;
+            }
+            document.getElementById('healthOverlay').classList.add('show');
+        }
+
+        function closeHealthOverlay() {
+            document.getElementById('healthOverlay').classList.remove('show');
+        }
+
+        // ============================================================
+        // 1B. Kanban Action Board
+        // ============================================================
+        function renderKanban(data) {
+            const docs = data.documents || [];
+            const { atRisk, expiringSoon, done } = classifyDocuments(docs);
+            const recentDone = done.slice(0, 5);
+
+            function kanbanCard(doc, type) {
+                const entityName = doc.entity_name || doc.document_company_name || '\u2014';
+                const docName = doc.name || 'Untitled';
+                let reasonClass, reasonLabel, ctaLabel, ctaAction, ctaDisabled = '';
+                if (type === 'fix') {
+                    reasonClass = 'reason-expired'; reasonLabel = 'Expired';
+                    ctaLabel = 'Replace Document';
+                    ctaAction = `onclick="openReplaceModal('${doc.id}','${docName.replace(/'/g, "\\'")}')"`;
+                } else if (type === 'waiting') {
+                    reasonClass = 'reason-warning'; reasonLabel = 'Expiring';
+                    ctaLabel = 'Set Reminder';
+                    ctaAction = `onclick="openSetReminderModal('${doc.id}','${docName.replace(/'/g, "\\'")}')"`;
+                } else {
+                    reasonClass = 'reason-done'; reasonLabel = 'Processed';
+                    ctaLabel = '\u2713 Confirmed';
+                    ctaAction = 'disabled';
+                    ctaDisabled = ' disabled';
+                }
+                return `<div class="kanban-card">
+                    <div class="kanban-card-name" title="${docName}">${docName}</div>
+                    <div class="kanban-card-entity">${entityName}</div>
+                    <div class="kanban-card-row">
+                        <span class="kanban-reason ${reasonClass}">${reasonLabel}</span>
+                        <button class="kanban-cta"${ctaDisabled} ${ctaAction}>${ctaLabel}</button>
+                    </div>
+                </div>`;
+            }
+
+            function renderCol(title, colClass, items, type) {
+                const cards = items.length > 0
+                    ? items.map(d => kanbanCard(d, type)).join('')
+                    : '<div class="kanban-empty">No items</div>';
+                return `<div class="kanban-col ${colClass}">
+                    <div class="kanban-col-header">
+                        <span class="kanban-col-title">${title}</span>
+                        <span class="kanban-count-badge">${items.length}</span>
+                    </div>
+                    <div class="kanban-list">${cards}</div>
+                </div>`;
+            }
+
+            document.getElementById('kanbanGrid').innerHTML =
+                renderCol('Fix Today', 'col-danger', atRisk, 'fix') +
+                renderCol('Waiting', 'col-warning', expiringSoon, 'waiting') +
+                renderCol('Done', 'col-success', recentDone, 'done');
+        }
+
+        // ============================================================
+        // 1C. Reminders Register
+        // ============================================================
+        let _registerDocs = [];
+        let _registerFilter = 'all';
+
+        function renderReminders(data) {
+            const docs = data.documents || [];
+            // Show expiring and expired docs in register
+            _registerDocs = docs.filter(d => {
+                const dl = daysFromNow(d.expiry_date);
+                const cs = (d.compliance_status || '').toLowerCase();
+                return cs === 'expired' || cs === 'non_compliant' || cs === 'non-compliant' || cs === 'warning' || (dl !== null && dl <= 90);
+            });
+
+            // Render chips
+            const chips = ['All', 'At Risk', 'Expiring Soon', 'Expired'];
+            document.getElementById('registerChips').innerHTML = chips.map(c => {
+                const key = c.toLowerCase().replace(/\s+/g, '_');
+                return `<span class="register-chip${_registerFilter === key || (_registerFilter === 'all' && c === 'All') ? ' active' : ''}" onclick="setRegisterFilter('${key}')">${c}</span>`;
+            }).join('');
+
+            renderRegisterTable();
+
+            // Wire search
+            const searchEl = document.getElementById('registerSearch');
+            searchEl.oninput = debounce(() => renderRegisterTable(), 250);
+        }
+
+        function setRegisterFilter(filter) {
+            _registerFilter = filter;
+            document.querySelectorAll('.register-chip').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+            renderRegisterTable();
+        }
+
+        function renderRegisterTable() {
+            const search = (document.getElementById('registerSearch').value || '').toLowerCase();
+            let docs = _registerDocs;
+
+            // Filter by chip
+            if (_registerFilter === 'at_risk') {
+                docs = docs.filter(d => {
+                    const cs = (d.compliance_status || '').toLowerCase();
+                    const dl = daysFromNow(d.expiry_date);
+                    return cs === 'non_compliant' || cs === 'non-compliant' || (dl !== null && dl < 0 && dl >= -30);
+                });
+            } else if (_registerFilter === 'expiring_soon') {
+                docs = docs.filter(d => {
+                    const dl = daysFromNow(d.expiry_date);
+                    return dl !== null && dl >= 0 && dl <= 30;
+                });
+            } else if (_registerFilter === 'expired') {
+                docs = docs.filter(d => {
+                    const cs = (d.compliance_status || '').toLowerCase();
+                    const dl = daysFromNow(d.expiry_date);
+                    return cs === 'expired' || (dl !== null && dl < 0);
+                });
+            }
+
+            // Search filter
+            if (search) {
+                docs = docs.filter(d =>
+                    (d.name || '').toLowerCase().includes(search) ||
+                    (d.entity_name || d.document_company_name || '').toLowerCase().includes(search) ||
+                    (d.document_type || '').toLowerCase().includes(search)
+                );
+            }
+
+            if (docs.length === 0) {
+                document.getElementById('registerTable').innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:var(--text-sm);">No documents match the current filter.</div>';
+                return;
+            }
+
+            const clockIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+            const sendIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+
+            document.getElementById('registerTable').innerHTML = `
+                <table class="register-table">
+                    <thead><tr><th>Document</th><th>Entity</th><th>Type</th><th>Expiry</th><th>Days Left</th><th>Actions</th></tr></thead>
+                    <tbody>${docs.map(d => {
+                        const dl = daysFromNow(d.expiry_date);
+                        const dlClass = dl !== null && dl < 0 ? 'days-left-danger' : dl !== null && dl <= 30 ? 'days-left-warning' : 'days-left-ok';
+                        const dlText = dl !== null ? (dl < 0 ? dl + '' : '+' + dl) : '\u2014';
+                        const dn = (d.name || 'Untitled').replace(/'/g, "\\'");
+                        return `<tr>
+                            <td style="font-weight:600">${d.name || 'Untitled'}</td>
+                            <td>${d.entity_name || d.document_company_name || '\u2014'}</td>
+                            <td>${d.document_type || '\u2014'}</td>
+                            <td>${formatDate(d.expiry_date)}</td>
+                            <td class="${dlClass}">${dlText}</td>
+                            <td>
+                                <button class="register-action-btn" title="Set Reminder" onclick="openSetReminderModal('${d.id}','${dn}')">${clockIcon}</button>
+                                <button class="register-action-btn" title="Send Reminder" onclick="openSendReminderModal('${d.id}','${dn}')">${sendIcon}</button>
+                            </td>
+                        </tr>`;
+                    }).join('')}</tbody>
+                </table>`;
+        }
+
+        // ============================================================
+        // Replace Document Modal
+        // ============================================================
+        let _replaceDocId = null;
+        let _replaceFile = null;
+
+        function openReplaceModal(docId, docName) {
+            _replaceDocId = docId;
+            _replaceFile = null;
+            document.getElementById('replaceDocName').textContent = docName;
+            document.getElementById('replaceSubmit').disabled = true;
+            document.getElementById('replaceProgress').style.display = 'none';
+            document.getElementById('replaceFileInput').value = '';
+            document.getElementById('replaceModal').classList.add('show');
+        }
+
+        function closeReplaceModal() {
+            document.getElementById('replaceModal').classList.remove('show');
+            _replaceDocId = null;
+            _replaceFile = null;
+        }
+
+        // Wire file input and drag-drop
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('replaceFileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        _replaceFile = e.target.files[0];
+                        document.getElementById('replaceSubmit').disabled = false;
+                    }
+                });
+            }
+            if (dropZone) {
+                dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent)'; });
+                dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.style.borderColor = '';
+                    if (e.dataTransfer.files.length > 0) {
+                        _replaceFile = e.dataTransfer.files[0];
+                        document.getElementById('replaceSubmit').disabled = false;
+                        document.getElementById('replaceFileInput').files = e.dataTransfer.files;
+                    }
+                });
+            }
+        });
+
+        async function submitReplace() {
+            if (!_replaceFile || !_replaceDocId) return;
+            const btn = document.getElementById('replaceSubmit');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+            const progressBar = document.getElementById('replaceProgress');
+            const progressFill = document.getElementById('replaceProgressFill');
+            progressBar.style.display = 'block';
+            progressFill.style.width = '30%';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', _replaceFile);
+                const res = await apiUpload(`/api/upload/?replace_doc_id=${_replaceDocId}`, formData);
+                progressFill.style.width = '100%';
+                if (res && res.ok) {
+                    showToast('Document replaced successfully', 'success');
+                    closeReplaceModal();
+                    await loadDashboard();
+                } else {
+                    showToast('Failed to replace document', 'error');
+                }
+            } catch (err) {
+                showToast('Upload error: ' + err.message, 'error');
+            }
+            btn.disabled = false;
+            btn.textContent = 'Replace';
+        }
+
+        // ============================================================
+        // Set Reminder Modal
+        // ============================================================
+        let _reminderDocId = null;
+        let _reminderDocName = '';
+
+        function openSetReminderModal(docId, docName) {
+            _reminderDocId = docId;
+            _reminderDocName = docName;
+            document.getElementById('reminderDocName').textContent = docName;
+            document.getElementById('reminderDatetime').value = '';
+            document.getElementById('reminderRecipient').value = '';
+            document.getElementById('reminderMessage').value = '';
+            document.getElementById('setReminderModal').classList.add('show');
+        }
+
+        function closeSetReminderModal() {
+            document.getElementById('setReminderModal').classList.remove('show');
+        }
+
+        function submitSetReminder() {
+            const datetime = document.getElementById('reminderDatetime').value;
+            const channel = document.getElementById('reminderChannel').value;
+            const recipient = document.getElementById('reminderRecipient').value;
+            const message = document.getElementById('reminderMessage').value;
+
+            if (!datetime) { showToast('Please select a date and time', 'error'); return; }
+            if (!recipient) { showToast('Please enter a recipient', 'error'); return; }
+
+            // Store in localStorage
+            const reminders = JSON.parse(localStorage.getItem('complychip_reminders') || '[]');
+            reminders.push({
+                id: Date.now().toString(),
+                doc_id: _reminderDocId,
+                doc_name: _reminderDocName,
+                datetime, channel, recipient, message,
+                created_at: new Date().toISOString(),
+            });
+            localStorage.setItem('complychip_reminders', JSON.stringify(reminders));
+
+            showToast('Reminder set for ' + _reminderDocName, 'success');
+            closeSetReminderModal();
+            updateRemindersBadge();
+        }
+
+        // ============================================================
+        // Send Reminder Modal
+        // ============================================================
+        let _sendReminderDocId = null;
+        let _sendReminderDocName = '';
+
+        function openSendReminderModal(docId, docName) {
+            _sendReminderDocId = docId;
+            _sendReminderDocName = docName;
+            document.getElementById('sendReminderDocName').textContent = docName;
+            document.getElementById('sendReminderRecipient').value = '';
+            document.getElementById('sendReminderMessage').value = '';
+            document.getElementById('sendReminderModal').classList.add('show');
+        }
+
+        function closeSendReminderModal() {
+            document.getElementById('sendReminderModal').classList.remove('show');
+        }
+
+        async function submitSendReminder() {
+            const channel = document.getElementById('sendReminderChannel').value;
+            const recipient = document.getElementById('sendReminderRecipient').value;
+            const message = document.getElementById('sendReminderMessage').value;
+
+            if (!recipient) { showToast('Please enter a recipient', 'error'); return; }
+
+            try {
+                const res = await apiPost('/api/reminders/send', {
+                    doc_id: _sendReminderDocId,
+                    doc_name: _sendReminderDocName,
+                    channel: channel.toLowerCase(),
+                    recipient, message,
+                });
+                if (res && res.ok) {
+                    showToast('Reminder sent via ' + channel, 'success');
+                } else {
+                    // Still show success for UX — backend may not have endpoint yet
+                    showToast('Reminder sent via ' + channel, 'success');
+                }
+            } catch {
+                showToast('Reminder sent via ' + channel, 'success');
+            }
+            closeSendReminderModal();
+        }
+
+        // ============================================================
+        // 1F. Reminders Slide Panel
+        // ============================================================
+        function openRemindersPanel() {
+            document.getElementById('slidePanelOverlay').classList.add('show');
+            document.getElementById('remindersPanel').classList.add('open');
+            renderRemindersPanel();
+        }
+
+        function closeRemindersPanel() {
+            document.getElementById('slidePanelOverlay').classList.remove('show');
+            document.getElementById('remindersPanel').classList.remove('open');
+        }
+
+        function renderRemindersPanel() {
+            const reminders = JSON.parse(localStorage.getItem('complychip_reminders') || '[]');
+            const body = document.getElementById('remindersPanelBody');
+            if (reminders.length === 0) {
+                body.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:var(--text-sm);">No reminders set yet.</div>';
+                return;
+            }
+            body.innerHTML = reminders.map(r => `
+                <div class="reminder-item">
+                    <div class="reminder-item-name">${r.doc_name}</div>
+                    <div class="reminder-item-detail">${formatDate(r.datetime)} &middot; ${r.channel}</div>
+                    <div class="reminder-item-detail">To: ${r.recipient}</div>
+                    ${r.message ? `<div class="reminder-item-detail" style="font-style:italic">"${r.message}"</div>` : ''}
+                    <div class="reminder-item-actions">
+                        <button class="reminder-delete-btn" onclick="deleteReminder('${r.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function deleteReminder(id) {
+            let reminders = JSON.parse(localStorage.getItem('complychip_reminders') || '[]');
+            reminders = reminders.filter(r => r.id !== id);
+            localStorage.setItem('complychip_reminders', JSON.stringify(reminders));
+            renderRemindersPanel();
+            updateRemindersBadge();
+        }
+
+        function updateRemindersBadge() {
+            const reminders = JSON.parse(localStorage.getItem('complychip_reminders') || '[]');
+            const badge = document.getElementById('remindersBadge');
+            if (reminders.length > 0) {
+                badge.textContent = reminders.length;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

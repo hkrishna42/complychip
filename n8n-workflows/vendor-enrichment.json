@@ -1,0 +1,140 @@
+{
+  "name": "ComplyChip - Vendor Risk Enrichment",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "vendor-enrichment",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Vendor enrichment started\"}",
+        "options": {}
+      },
+      "webhookId": "vendor-enrichment-01"
+    },
+    {
+      "id": "fetch-vendor-docs",
+      "name": "Fetch Vendor Documents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents:runQuery",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"structuredQuery\": {\n    \"from\": [{ \"collectionId\": \"documents\" }],\n    \"where\": {\n      \"fieldFilter\": {\n        \"field\": { \"fieldPath\": \"entity_id\" },\n        \"op\": \"EQUAL\",\n        \"value\": { \"stringValue\": \"{{ $json.vendor_id || $json.entity_id }}\" }\n      }\n    },\n    \"limit\": 100\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "calculate-risk-metrics",
+      "name": "Calculate Risk Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "jsCode": "// Calculate vendor risk metrics from document portfolio\nconst documents = $input.all().map(item => item.json);\nconst webhookData = $('Webhook Trigger').first().json;\nconst now = new Date();\n\nlet totalDocs = 0;\nlet expiredDocs = 0;\nlet expiringDocs = 0;\nlet missingTypes = [];\nlet totalContractValue = 0;\nlet activeContracts = 0;\nlet latestComplianceScores = [];\nlet documentTypes = new Set();\n\nconst requiredDocTypes = [\n  'insurance_policy', 'business_license', 'certificate_of_insurance',\n  'tax_filing', 'bond', 'w9'\n];\n\nfor (const doc of documents) {\n  if (!doc.document || !doc.document.fields) continue;\n  const fields = doc.document.fields;\n  totalDocs++;\n  \n  const docType = fields.document_type?.stringValue || '';\n  documentTypes.add(docType);\n  \n  // Check expiration\n  const expDate = fields.expiration_date?.stringValue;\n  if (expDate) {\n    const exp = new Date(expDate);\n    if (exp < now) {\n      expiredDocs++;\n    } else if ((exp - now) < 30 * 24 * 60 * 60 * 1000) {\n      expiringDocs++;\n    }\n  }\n  \n  // Sum contract values\n  const amount = parseFloat(fields.contract_value?.doubleValue || fields.contract_value?.integerValue || 0);\n  if (amount > 0) {\n    totalContractValue += amount;\n    if (!expDate || new Date(expDate) > now) {\n      activeContracts++;\n    }\n  }\n  \n  // Collect compliance scores\n  const score = parseInt(fields.compliance_score?.integerValue || 0);\n  if (score > 0) {\n    latestComplianceScores.push(score);\n  }\n}\n\n// Identify missing required document types\nfor (const reqType of requiredDocTypes) {\n  if (!documentTypes.has(reqType)) {\n    missingTypes.push(reqType);\n  }\n}\n\n// Calculate risk sub-scores\nconst expiredRatio = totalDocs > 0 ? expiredDocs / totalDocs : 0;\nconst documentCoverageScore = Math.max(0, 100 - (missingTypes.length * 15));\nconst expirationRiskScore = Math.max(0, 100 - (expiredRatio * 100) - (expiringDocs * 10));\nconst avgComplianceScore = latestComplianceScores.length > 0\n  ? latestComplianceScores.reduce((a, b) => a + b, 0) / latestComplianceScores.length\n  : 50;\n\nreturn [{\n  json: {\n    vendor_id: webhookData.vendor_id || webhookData.entity_id,\n    vendor_name: webhookData.vendor_name || webhookData.entity_name || '',\n    metrics: {\n      total_documents: totalDocs,\n      expired_documents: expiredDocs,\n      expiring_documents: expiringDocs,\n      expired_ratio: Math.round(expiredRatio * 100) / 100,\n      missing_document_types: missingTypes,\n      document_types_present: Array.from(documentTypes),\n      total_contract_value: totalContractValue,\n      active_contracts: activeContracts,\n      avg_compliance_score: Math.round(avgComplianceScore),\n      document_coverage_score: documentCoverageScore,\n      expiration_risk_score: Math.round(expirationRiskScore)\n    },\n    calculated_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "gemini-risk-narrative",
+      "name": "Gemini - Vendor Risk Narrative",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a vendor risk assessment analyst. Based on the following vendor compliance metrics, provide a structured risk assessment.\\n\\nVendor: {{ $json.vendor_name }} (ID: {{ $json.vendor_id }})\\n\\nMetrics:\\n{{ JSON.stringify($json.metrics, null, 2) }}\\n\\nProvide a JSON response with:\\n- risk_narrative: 3-5 sentence assessment of the vendor's compliance posture\\n- key_risks: array of {risk, severity, recommendation} objects\\n- strengths: array of positive compliance indicators\\n- action_items: prioritized array of {action, priority, deadline_recommendation}\\n- vendor_tier: 'preferred', 'standard', 'watch_list', or 'probation' based on overall risk\\n- recommended_review_frequency: 'monthly', 'quarterly', 'semi_annual', or 'annual'\\n\\nReturn ONLY valid JSON.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.15,\n    \"topP\": 0.85,\n    \"maxOutputTokens\": 4096\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "compute-final-score",
+      "name": "Compute Final Risk Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300],
+      "parameters": {
+        "jsCode": "// Compute final vendor risk score combining metrics and AI assessment\nconst metricsData = $('Calculate Risk Metrics').first().json;\nconst geminiResponse = $input.first().json;\n\nlet aiAssessment = {};\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  const cleaned = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  aiAssessment = JSON.parse(cleaned);\n} catch (e) {\n  aiAssessment = {\n    risk_narrative: 'AI assessment unavailable. Manual review recommended.',\n    key_risks: [],\n    strengths: [],\n    action_items: [],\n    vendor_tier: 'watch_list',\n    recommended_review_frequency: 'monthly'\n  };\n}\n\nconst metrics = metricsData.metrics;\n\n// Weighted risk score calculation (0-100, higher = better/lower risk)\nconst weights = {\n  document_coverage: 0.25,\n  expiration_risk: 0.30,\n  compliance_score: 0.30,\n  ai_tier_bonus: 0.15\n};\n\nconst tierScores = {\n  'preferred': 95,\n  'standard': 75,\n  'watch_list': 45,\n  'probation': 20\n};\n\nconst aiTierScore = tierScores[aiAssessment.vendor_tier] || 50;\n\nconst finalScore = Math.round(\n  (metrics.document_coverage_score * weights.document_coverage) +\n  (metrics.expiration_risk_score * weights.expiration_risk) +\n  (metrics.avg_compliance_score * weights.compliance_score) +\n  (aiTierScore * weights.ai_tier_bonus)\n);\n\nconst riskLevel = finalScore >= 80 ? 'low' : finalScore >= 60 ? 'medium' : finalScore >= 40 ? 'high' : 'critical';\n\nreturn [{\n  json: {\n    vendor_id: metricsData.vendor_id,\n    vendor_name: metricsData.vendor_name,\n    risk_score: finalScore,\n    risk_level: riskLevel,\n    metrics: metrics,\n    ai_assessment: aiAssessment,\n    vendor_tier: aiAssessment.vendor_tier,\n    review_frequency: aiAssessment.recommended_review_frequency,\n    enriched_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "update-vendor-firestore",
+      "name": "Update Vendor Profile in Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1600, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/entities/{{ $json.vendor_id }}?updateMask.fieldPaths=risk_score&updateMask.fieldPaths=risk_level&updateMask.fieldPaths=vendor_tier&updateMask.fieldPaths=review_frequency&updateMask.fieldPaths=risk_narrative&updateMask.fieldPaths=enriched_at",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"risk_score\": { \"integerValue\": \"{{ $json.risk_score }}\" },\n    \"risk_level\": { \"stringValue\": \"{{ $json.risk_level }}\" },\n    \"vendor_tier\": { \"stringValue\": \"{{ $json.vendor_tier }}\" },\n    \"review_frequency\": { \"stringValue\": \"{{ $json.review_frequency }}\" },\n    \"risk_narrative\": { \"stringValue\": \"{{ $json.ai_assessment.risk_narrative }}\" },\n    \"enriched_at\": { \"stringValue\": \"{{ $json.enriched_at }}\" }\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Fetch Vendor Documents", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Vendor Documents": {
+      "main": [
+        [{ "node": "Calculate Risk Metrics", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calculate Risk Metrics": {
+      "main": [
+        [{ "node": "Gemini - Vendor Risk Narrative", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Vendor Risk Narrative": {
+      "main": [
+        [{ "node": "Compute Final Risk Score", "type": "main", "index": 0 }]
+      ]
+    },
+    "Compute Final Risk Score": {
+      "main": [
+        [{ "node": "Update Vendor Profile in Firestore", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "vendor-risk" },
+    { "name": "enrichment" }
+  ]
+}

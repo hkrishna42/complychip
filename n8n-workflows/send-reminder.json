@@ -1,0 +1,126 @@
+{
+  "name": "ComplyChip - Send Reminder",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "send-reminder",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Reminder processing started\"}",
+        "options": {}
+      },
+      "webhookId": "send-reminder-01"
+    },
+    {
+      "id": "compose-email",
+      "name": "Compose Email from Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "parameters": {
+        "jsCode": "// Compose email from reminder data and template\nconst reminder = $input.first().json;\n\nconst templates = {\n  expiration_warning: {\n    subject: `[ComplyChip] Document Expiring Soon: ${reminder.document_name || 'Document'}`,\n    html: `\n      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n        <div style=\"background: #1a1a2e; padding: 20px; border-radius: 8px 8px 0 0;\">\n          <h1 style=\"color: #00d4aa; margin: 0; font-size: 20px;\">ComplyChip Alert</h1>\n        </div>\n        <div style=\"background: #16213e; padding: 24px; color: #e0e0e0;\">\n          <h2 style=\"color: #ffffff; margin-top: 0;\">Document Expiration Warning</h2>\n          <p>The following document is expiring soon and requires attention:</p>\n          <table style=\"width: 100%; border-collapse: collapse; margin: 16px 0;\">\n            <tr><td style=\"padding: 8px; color: #8892b0;\">Entity:</td><td style=\"padding: 8px; color: #fff;\">${reminder.entity_name || 'N/A'}</td></tr>\n            <tr><td style=\"padding: 8px; color: #8892b0;\">Document:</td><td style=\"padding: 8px; color: #fff;\">${reminder.document_name || 'N/A'}</td></tr>\n            <tr><td style=\"padding: 8px; color: #8892b0;\">Type:</td><td style=\"padding: 8px; color: #fff;\">${reminder.document_type || 'N/A'}</td></tr>\n            <tr><td style=\"padding: 8px; color: #8892b0;\">Expires:</td><td style=\"padding: 8px; color: #ff6b6b; font-weight: bold;\">${reminder.expiration_date || 'N/A'}</td></tr>\n            <tr><td style=\"padding: 8px; color: #8892b0;\">Days Until Expiry:</td><td style=\"padding: 8px; color: #ffd93d; font-weight: bold;\">${reminder.days_until_expiry || 'N/A'}</td></tr>\n          </table>\n          ${reminder.custom_message ? `<p style=\"background: #0f3460; padding: 12px; border-radius: 4px; border-left: 3px solid #00d4aa;\"><strong>Note:</strong> ${reminder.custom_message}</p>` : ''}\n          <a href=\"${reminder.dashboard_url || 'http://127.0.0.1:8000'}\" style=\"display: inline-block; background: #00d4aa; color: #1a1a2e; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 12px;\">View in ComplyChip</a>\n        </div>\n        <div style=\"background: #0f3460; padding: 12px; text-align: center; border-radius: 0 0 8px 8px;\">\n          <p style=\"color: #8892b0; margin: 0; font-size: 12px;\">Sent by ComplyChip Compliance Monitoring</p>\n        </div>\n      </div>\n    `\n  },\n  compliance_alert: {\n    subject: `[ComplyChip] Compliance Alert: ${reminder.entity_name || 'Entity'}`,\n    html: `\n      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n        <div style=\"background: #1a1a2e; padding: 20px; border-radius: 8px 8px 0 0;\">\n          <h1 style=\"color: #00d4aa; margin: 0; font-size: 20px;\">ComplyChip Alert</h1>\n        </div>\n        <div style=\"background: #16213e; padding: 24px; color: #e0e0e0;\">\n          <h2 style=\"color: #ff6b6b; margin-top: 0;\">Compliance Score Alert</h2>\n          <p>${reminder.entity_name}'s compliance score has dropped below the threshold.</p>\n          <div style=\"text-align: center; padding: 20px;\">\n            <span style=\"font-size: 48px; font-weight: bold; color: ${(reminder.compliance_score || 0) >= 70 ? '#ffd93d' : '#ff6b6b'};\">${reminder.compliance_score || 0}%</span>\n          </div>\n          ${reminder.custom_message ? `<p style=\"background: #0f3460; padding: 12px; border-radius: 4px;\">${reminder.custom_message}</p>` : ''}\n          <a href=\"${reminder.dashboard_url || 'http://127.0.0.1:8000'}\" style=\"display: inline-block; background: #00d4aa; color: #1a1a2e; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 12px;\">View Dashboard</a>\n        </div>\n        <div style=\"background: #0f3460; padding: 12px; text-align: center; border-radius: 0 0 8px 8px;\">\n          <p style=\"color: #8892b0; margin: 0; font-size: 12px;\">Sent by ComplyChip Compliance Monitoring</p>\n        </div>\n      </div>\n    `\n  },\n  general: {\n    subject: `[ComplyChip] Reminder: ${reminder.subject || 'Action Required'}`,\n    html: `\n      <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n        <div style=\"background: #1a1a2e; padding: 20px; border-radius: 8px 8px 0 0;\">\n          <h1 style=\"color: #00d4aa; margin: 0; font-size: 20px;\">ComplyChip Reminder</h1>\n        </div>\n        <div style=\"background: #16213e; padding: 24px; color: #e0e0e0;\">\n          <h2 style=\"color: #ffffff; margin-top: 0;\">${reminder.subject || 'Reminder'}</h2>\n          <p>${reminder.custom_message || 'You have a pending action item in ComplyChip.'}</p>\n          <a href=\"${reminder.dashboard_url || 'http://127.0.0.1:8000'}\" style=\"display: inline-block; background: #00d4aa; color: #1a1a2e; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 12px;\">Open ComplyChip</a>\n        </div>\n        <div style=\"background: #0f3460; padding: 12px; text-align: center; border-radius: 0 0 8px 8px;\">\n          <p style=\"color: #8892b0; margin: 0; font-size: 12px;\">Sent by ComplyChip Compliance Monitoring</p>\n        </div>\n      </div>\n    `\n  }\n};\n\nconst templateType = reminder.reminder_type || 'general';\nconst template = templates[templateType] || templates.general;\n\nreturn [{\n  json: {\n    reminder_id: reminder.reminder_id,\n    to_email: reminder.to_email,\n    cc_emails: reminder.cc_emails || [],\n    subject: template.subject,\n    html_body: template.html,\n    template_type: templateType,\n    entity_id: reminder.entity_id,\n    document_id: reminder.document_id,\n    sent_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [760, 300],
+      "parameters": {
+        "fromEmail": "notifications@complychip.io",
+        "toEmail": "={{ $json.to_email }}",
+        "ccEmail": "={{ $json.cc_emails.join(', ') }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "html": "={{ $json.html_body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "ComplyChip SMTP"
+        }
+      }
+    },
+    {
+      "id": "update-reminder-status",
+      "name": "Update Reminder Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 200],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/reminders/{{ $('Compose Email from Template').first().json.reminder_id }}?updateMask.fieldPaths=status&updateMask.fieldPaths=sent_at&updateMask.fieldPaths=email_subject",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"status\": { \"stringValue\": \"sent\" },\n    \"sent_at\": { \"stringValue\": \"{{ $('Compose Email from Template').first().json.sent_at }}\" },\n    \"email_subject\": { \"stringValue\": \"{{ $('Compose Email from Template').first().json.subject }}\" }\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "callback-reminder-sent",
+      "name": "Callback - Reminder Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/webhooks/reminder-sent",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"reminder_id\": \"{{ $('Compose Email from Template').first().json.reminder_id }}\",\n  \"entity_id\": \"{{ $('Compose Email from Template').first().json.entity_id }}\",\n  \"document_id\": \"{{ $('Compose Email from Template').first().json.document_id }}\",\n  \"to_email\": \"{{ $('Compose Email from Template').first().json.to_email }}\",\n  \"status\": \"sent\",\n  \"template_type\": \"{{ $('Compose Email from Template').first().json.template_type }}\",\n  \"sent_at\": \"{{ $('Compose Email from Template').first().json.sent_at }}\"\n}",
+        "options": {
+          "timeout": 10000,
+          "allowUnauthorizedCerts": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Compose Email from Template", "type": "main", "index": 0 }]
+      ]
+    },
+    "Compose Email from Template": {
+      "main": [
+        [{ "node": "Send Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          { "node": "Update Reminder Status", "type": "main", "index": 0 },
+          { "node": "Callback - Reminder Sent", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "reminders" },
+    { "name": "email" }
+  ]
+}

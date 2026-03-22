@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copilot - ComplyChip</title>
+    <link rel="stylesheet" href="/css/design-system.css?v=4">
+    <link rel="stylesheet" href="/css/components.css?v=4">
+    <link rel="stylesheet" href="/css/dark-mode.css?v=4">
+    <style>
+        .main-content { display: flex; flex-direction: column; }
+        .chat-layout { display: flex; flex: 1; min-height: 0; height: calc(100vh - var(--topbar-height)); }
+
+        /* Chat Area */
+        .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 24px; }
+        .chat-messages-inner { max-width: 720px; margin: 0 auto; }
+
+        /* Welcome */
+        .chat-welcome { text-align: center; padding: 60px 24px 40px; }
+        .chat-welcome-icon {
+            width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
+        }
+        .chat-welcome-icon svg { width: 32px; height: 32px; color: #fff; }
+        .chat-welcome h2 { font-size: var(--text-xl); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.02em; }
+        .chat-welcome p { font-size: var(--text-sm); color: var(--text-secondary); max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+        /* Message Bubbles */
+        .message { display: flex; gap: 12px; margin-bottom: 20px; animation: fadeIn 0.3s ease; }
+        .message-user { flex-direction: row-reverse; }
+        .message-avatar {
+            width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;
+        }
+        .message-ai .message-avatar { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; }
+        .message-user .message-avatar { background: var(--bg-input); color: var(--text-secondary); }
+        .message-content { max-width: 80%; }
+        .message-bubble {
+            padding: 12px 16px; border-radius: 12px; font-size: var(--text-sm); line-height: 1.6;
+        }
+        .message-ai .message-bubble { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 12px 12px 12px 4px; }
+        .message-user .message-bubble { background: var(--accent); color: #fff; border-radius: 12px 12px 4px 12px; }
+        .message-time { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+        .message-user .message-time { text-align: right; }
+
+        /* AI message formatting */
+        .message-bubble strong { font-weight: 600; }
+        .message-bubble ul, .message-bubble ol { margin: 8px 0; padding-left: 20px; }
+        .message-bubble li { margin-bottom: 4px; }
+        .message-bubble code { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); padding: 2px 6px; border-radius: 4px; }
+        .message-bubble pre { background: var(--bg-input); padding: 12px; border-radius: var(--radius-md); margin: 8px 0; overflow-x: auto; }
+        .message-bubble pre code { background: none; padding: 0; }
+
+        /* Sources */
+        .message-sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .source-card {
+            display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-input);
+            border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 11px;
+            color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast);
+        }
+        .source-card:hover { border-color: var(--accent-border); color: var(--accent); }
+        .source-card svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+        /* Typing Indicator */
+        .typing-indicator { display: flex; gap: 4px; padding: 12px 16px; }
+        .typing-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);
+            animation: typingBounce 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Suggested Questions */
+        .chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 24px 0; }
+        .suggestion-chip {
+            padding: 8px 16px; border-radius: var(--radius-pill); border: 1px solid var(--border);
+            background: var(--bg-card); font-size: var(--text-xs); color: var(--text-secondary);
+            cursor: pointer; transition: all var(--transition-fast); font-family: var(--font-sans);
+        }
+        .suggestion-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+        /* Input Area */
+        .chat-input-area {
+            padding: 16px 24px 24px; border-top: 1px solid var(--border); background: var(--bg-body);
+        }
+        .chat-input-wrap {
+            max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+            padding: 8px 12px; transition: border-color var(--transition-fast);
+        }
+        .chat-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-border); }
+        .chat-textarea {
+            flex: 1; border: none; outline: none; resize: none; font-family: var(--font-sans);
+            font-size: var(--text-sm); color: var(--text-primary); background: transparent;
+            min-height: 24px; max-height: 120px; line-height: 1.5; padding: 4px 0;
+        }
+        .chat-textarea::placeholder { color: var(--text-muted); }
+        .chat-send-btn {
+            width: 36px; height: 36px; border-radius: var(--radius-md); border: none;
+            background: var(--accent); color: #fff; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; flex-shrink: 0;
+            transition: background var(--transition-fast);
+        }
+        .chat-send-btn:hover { background: var(--accent-hover); }
+        .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .chat-send-btn svg { width: 18px; height: 18px; }
+
+        /* Analysis Sidebar */
+        .analysis-sidebar {
+            width: 360px; border-left: 1px solid var(--border); background: var(--bg-card);
+            display: flex; flex-direction: column; overflow-y: auto; transition: width var(--transition-base);
+        }
+        .analysis-sidebar.collapsed { width: 0; border: none; overflow: hidden; }
+        .analysis-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
+            align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        .analysis-header h3 { font-size: var(--text-sm); font-weight: 600; }
+        .analysis-toggle {
+            width: 28px; height: 28px; border-radius: var(--radius-sm); border: none;
+            background: transparent; color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .analysis-toggle:hover { background: var(--bg-input); color: var(--text-primary); }
+        .analysis-body { flex: 1; padding: 16px 20px; }
+        .analysis-empty { text-align: center; padding: 40px 16px; color: var(--text-muted); font-size: var(--text-sm); }
+        .analysis-doc {
+            padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 12px;
+        }
+        .analysis-doc-title { font-size: var(--text-sm); font-weight: 600; margin-bottom: 4px; }
+        .analysis-doc-meta { font-size: var(--text-xs); color: var(--text-muted); }
+        .analysis-doc-excerpt { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 8px; line-height: 1.5; padding: 8px; background: var(--bg-input); border-radius: var(--radius-sm); }
+
+        .toggle-sidebar-btn {
+            position: fixed; right: 16px; top: calc(var(--topbar-height) + 16px);
+            width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+            background: var(--bg-card); color: var(--text-muted); cursor: pointer; z-index: 5;
+            display: none; align-items: center; justify-content: center;
+        }
+
+        @media (max-width: 1024px) {
+            .analysis-sidebar { display: none; }
+            .toggle-sidebar-btn { display: flex; }
+        }
+    </style>
+    <script>if(localStorage.getItem("complychip_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")</script>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-container"></div>
+        <div class="main-content">
+            <div id="topbar-container"></div>
+            <div class="chat-layout">
+                <div class="chat-area">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-messages-inner" id="messagesInner">
+                            <!-- Welcome -->
+                            <div class="chat-welcome" id="chatWelcome">
+                                <div class="chat-welcome-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                    </svg>
+                                </div>
+                                <h2>Compliance Copilot</h2>
+                                <p>I'm your compliance copilot. Ask me anything about your compliance portfolio, documents, or regulatory requirements.</p>
+                            </div>
+                            <div class="chat-suggestions" id="suggestions">
+                                <button class="suggestion-chip" onclick="askQuestion('What documents are expiring soon?')">What documents are expiring soon?</button>
+                                <button class="suggestion-chip" onclick="askQuestion('Summarize compliance status')">Summarize compliance status</button>
+                                <button class="suggestion-chip" onclick="askQuestion('What are the biggest risk areas?')">What are the biggest risk areas?</button>
+                                <button class="suggestion-chip" onclick="askQuestion('Explain regulatory requirements')">Explain regulatory requirements</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <div class="chat-input-wrap">
+                            <textarea class="chat-textarea" id="chatInput" placeholder="Ask about compliance, documents, regulations..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                            <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Sidebar -->
+                <div class="analysis-sidebar" id="analysisSidebar">
+                    <div class="analysis-header">
+                        <h3>Referenced Documents</h3>
+                        <button class="analysis-toggle" onclick="toggleAnalysis()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+                    </div>
+                    <div class="analysis-body" id="analysisBody">
+                        <div class="analysis-empty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" style="margin:0 auto 12px;display:block"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Documents referenced in the conversation will appear here.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js?v=4"></script>
+    <script src="/js/components.js?v=4"></script>
+    <script>
+        const cannedResponses = {
+            'What documents are expiring soon?': {
+                text: `Based on your current portfolio, here are the documents expiring within the next 60 days:\n\n<strong>Critical (within 30 days):</strong>\n<ul><li><strong>OSHA Safety Certificate</strong> - Harbor Industrial Complex - expires Apr 10, 2026</li><li><strong>City Business License</strong> - Riverside Medical Center - expires Apr 30, 2026</li></ul>\n\n<strong>Warning (30-60 days):</strong>\n<ul><li><strong>Commercial Lease Agreement</strong> - Airport Business Park - expires May 1, 2026</li></ul>\n\nI recommend prioritizing the OSHA certificate renewal as it has compliance implications for workplace safety regulations.`,
+                sources: [
+                    { title: 'OSHA Safety Certificate', type: 'Safety Certificate' },
+                    { title: 'City Business License', type: 'Business License' },
+                    { title: 'Commercial Lease', type: 'Lease Agreement' },
+                ],
+                docs: [
+                    { title: 'OSHA Safety Certificate', entity: 'Harbor Industrial Complex', excerpt: 'Workplace safety certification covering all operational areas. Minor violations noted during last audit require remediation before renewal.' },
+                ]
+            },
+            'Summarize compliance status': {
+                text: `Here's your compliance portfolio summary:\n\n<strong>Overall Score: 76.4/100</strong> (Fair)\n\n<ul><li><strong>Total Documents:</strong> 47 across 5 entities</li><li><strong>Compliance Rate:</strong> 84% of documents are current</li><li><strong>At Risk:</strong> 2 documents expired, 3 expiring within 30 days</li></ul>\n\n<strong>Entity Performance:</strong>\n<ul><li>Airport Business Park: 88 (Good)</li><li>Downtown Office Tower: 82 (Good)</li><li>University Research Campus: 79 (Fair)</li><li>Riverside Medical Center: 72 (Fair)</li><li>Harbor Industrial Complex: 61 (At Risk)</li></ul>\n\nThe biggest concern is <strong>Harbor Industrial Complex</strong> with an expired workers' comp policy and upcoming OSHA renewal.`,
+                sources: [
+                    { title: 'Analytics Summary', type: 'Report' },
+                    { title: 'Entity Scores', type: 'Dashboard' },
+                ],
+                docs: [
+                    { title: 'Workers Comp Policy', entity: 'Harbor Industrial Complex', excerpt: 'Workers compensation insurance policy has lapsed as of January 31, 2026. This creates a critical compliance gap that must be addressed immediately.' },
+                ]
+            },
+            'What are the biggest risk areas?': {
+                text: `I've identified the following key risk areas in your compliance portfolio:\n\n<strong>1. Lapsed Workers' Compensation (CRITICAL)</strong>\nHarbor Industrial Complex's workers' comp policy expired Jan 31. This exposes the organization to significant legal and financial risk.\n\n<strong>2. Expired Building Permit (HIGH)</strong>\nRiverside Medical Center's building permit for Wing B expansion has expired. Construction activities may need to halt until renewal.\n\n<strong>3. OSHA Compliance Gap (HIGH)</strong>\nHarbor Industrial has unresolved findings from the last OSHA inspection with renewal approaching in April.\n\n<strong>4. Vendor Concentration Risk (MEDIUM)</strong>\nBuildRight Construction has a risk score of 42/100, which is the highest vendor risk in your portfolio.\n\n<strong>Recommendations:</strong>\n<ul><li>Immediately renew workers' comp policy</li><li>Expedite building permit renewal application</li><li>Address OSHA violations before re-inspection</li><li>Diversify vendor relationships to reduce concentration risk</li></ul>`,
+                sources: [
+                    { title: 'Risk Assessment', type: 'Analysis' },
+                    { title: 'Vendor Risk Report', type: 'Report' },
+                ],
+                docs: [
+                    { title: 'Workers Comp Policy', entity: 'Harbor Industrial', excerpt: 'Policy lapsed January 31, 2026. Immediate action required to reinstate coverage and avoid regulatory penalties.' },
+                    { title: 'Building Permit #2024-1847', entity: 'Riverside Medical', excerpt: 'Construction permit expired February 28, 2026. Renewal application submitted and awaiting city planning approval.' },
+                ]
+            },
+            'Explain regulatory requirements': {
+                text: `Here's an overview of the key regulatory frameworks affecting your portfolio:\n\n<strong>OSHA (Occupational Safety & Health)</strong>\nApplies to: Harbor Industrial Complex, all entities with workers\n<ul><li>Annual workplace safety inspections required</li><li>Incident reporting within 24 hours</li><li>Safety training documentation must be current</li></ul>\n\n<strong>EPA (Environmental Protection)</strong>\nApplies to: Harbor Industrial Complex\n<ul><li>Discharge permits for water and air emissions</li><li>Quarterly monitoring reports required</li><li>Environmental impact assessments for expansions</li></ul>\n\n<strong>GDPR / Data Processing</strong>\nApplies to: University Research Campus\n<ul><li>Data Processing Agreements required with all cloud providers</li><li>Annual compliance audits recommended</li><li>Data breach notification within 72 hours</li></ul>\n\n<strong>Local Building & Safety Codes</strong>\nApplies to: All entities\n<ul><li>Valid building permits for any construction</li><li>Fire safety inspections annually</li><li>Business license renewals on schedule</li></ul>`,
+                sources: [
+                    { title: 'OSHA Standards', type: 'Regulation' },
+                    { title: 'EPA Guidelines', type: 'Regulation' },
+                    { title: 'GDPR Framework', type: 'Regulation' },
+                ],
+                docs: []
+            },
+        };
+
+        const genericResponses = [
+            `Based on your compliance portfolio data, I can see several relevant insights. Your overall compliance score is 76.4, which falls in the "Fair" range. I'd recommend focusing on the entities with the lowest scores first, particularly Harbor Industrial Complex which has multiple compliance gaps.\n\nWould you like me to dive deeper into any specific area?`,
+            `I've analyzed your question against your document repository. Your portfolio contains 47 documents across 5 entities, with an 84% compliance rate. The main areas requiring attention are document renewals approaching in the next 30-60 days.\n\nLet me know if you'd like more specific information about any entity or document type.`,
+            `That's a great question. Looking at your compliance data, I can see patterns that suggest focusing on proactive document renewal management would have the biggest impact on your overall compliance posture. The entities with the strongest scores tend to have renewal processes that begin 90+ days before expiry.\n\nWould you like me to create a recommended action plan?`,
+        ];
+
+        let messageHistory = [];
+        let isTyping = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!initLayout('copilot', 'Copilot', 'AI-powered compliance assistant')) return;
+        });
+
+        function askQuestion(question) {
+            document.getElementById('chatInput').value = question;
+            sendMessage();
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || isTyping) return;
+
+            // Hide welcome on first message
+            const welcome = document.getElementById('chatWelcome');
+            const suggestions = document.getElementById('suggestions');
+            if (welcome) welcome.style.display = 'none';
+            if (suggestions) suggestions.style.display = 'none';
+
+            // Add user message
+            addMessage(text, 'user');
+            input.value = '';
+            autoResize(input);
+
+            // Show typing indicator
+            isTyping = true;
+            showTypingIndicator();
+
+            // Call real Copilot API, fall back to canned responses
+            try {
+                const res = await apiPost('/api/copilot/query', { query: text });
+                removeTypingIndicator();
+                isTyping = false;
+                if (res && res.ok) {
+                    const data = await res.json();
+                    const answer = data.response || data.answer || '';
+                    const sources = (data.sources || []).map(s => ({ title: s.title || s.document_name || 'Document', id: s.id || '' }));
+                    addMessage(answer, 'ai', sources.length > 0 ? sources : undefined);
+                } else {
+                    throw new Error('fallback');
+                }
+            } catch {
+                removeTypingIndicator();
+                isTyping = false;
+                const canned = cannedResponses[text];
+                if (canned) {
+                    addMessage(canned.text, 'ai', canned.sources);
+                    if (canned.docs && canned.docs.length > 0) updateAnalysisSidebar(canned.docs);
+                } else {
+                    const response = genericResponses[Math.floor(Math.random() * genericResponses.length)];
+                    addMessage(response, 'ai');
+                }
+            }
+        }
+
+        function addMessage(text, role, sources) {
+            const container = document.getElementById('messagesInner');
+            const user = getUser() || { name: 'Admin' };
+            const initials = role === 'user' ? (user.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : 'AI';
+            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            let sourcesHtml = '';
+            if (sources && sources.length > 0) {
+                sourcesHtml = `<div class="message-sources">${sources.map(s => `
+                    <div class="source-card">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>${s.title}</span>
+                    </div>
+                `).join('')}</div>`;
+            }
+
+            const messageEl = document.createElement('div');
+            messageEl.className = `message message-${role}`;
+            messageEl.innerHTML = `
+                <div class="message-avatar">${role === 'ai' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' : initials}</div>
+                <div class="message-content">
+                    <div class="message-bubble">${text}</div>
+                    ${sourcesHtml}
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            container.appendChild(messageEl);
+            scrollToBottom();
+        }
+
+        function showTypingIndicator() {
+            const container = document.getElementById('messagesInner');
+            const indicator = document.createElement('div');
+            indicator.className = 'message message-ai';
+            indicator.id = 'typingIndicator';
+            indicator.innerHTML = `
+                <div class="message-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                <div class="message-content">
+                    <div class="message-bubble">
+                        <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(indicator);
+            scrollToBottom();
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function scrollToBottom() {
+            const messages = document.getElementById('chatMessages');
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function toggleAnalysis() {
+            document.getElementById('analysisSidebar').classList.toggle('collapsed');
+        }
+
+        function updateAnalysisSidebar(docs) {
+            const body = document.getElementById('analysisBody');
+            body.innerHTML = docs.map(d => `
+                <div class="analysis-doc">
+                    <div class="analysis-doc-title">${d.title}</div>
+                    <div class="analysis-doc-meta">${d.entity || ''}</div>
+                    ${d.excerpt ? `<div class="analysis-doc-excerpt">${d.excerpt}</div>` : ''}
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

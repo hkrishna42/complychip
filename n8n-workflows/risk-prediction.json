@@ -1,0 +1,187 @@
+{
+  "name": "ComplyChip - Weekly Risk Prediction",
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Every Monday 6AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fetch-all-entities",
+      "name": "Fetch All Entity Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [480, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents:runQuery",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"structuredQuery\": {\n    \"from\": [{ \"collectionId\": \"entities\" }],\n    \"limit\": 500\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "heuristic-predictions",
+      "name": "Calculate Heuristic Predictions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 400],
+      "parameters": {
+        "jsCode": "// Calculate heuristic risk predictions per entity for 30/60/90 day horizons\nconst entities = $input.all().map(item => item.json);\nconst now = new Date();\n\nconst predictions = [];\n\nfor (const entity of entities) {\n  if (!entity.document || !entity.document.fields) continue;\n  \n  const fields = entity.document.fields;\n  const entityId = entity.document.name.split('/').pop();\n  const entityName = fields.name?.stringValue || fields.entity_name?.stringValue || entityId;\n  const currentScore = parseInt(fields.compliance_score?.integerValue || fields.risk_score?.integerValue || 75);\n  \n  // Parse document expiration data\n  const docsExpiring30 = parseInt(fields.docs_expiring_30?.integerValue || 0);\n  const docsExpiring60 = parseInt(fields.docs_expiring_60?.integerValue || 0);\n  const docsExpiring90 = parseInt(fields.docs_expiring_90?.integerValue || 0);\n  const totalDocs = parseInt(fields.total_documents?.integerValue || 1);\n  const expiredDocs = parseInt(fields.expired_documents?.integerValue || 0);\n  \n  // Historical trend (simple linear projection)\n  const previousScore = parseInt(fields.previous_score?.integerValue || currentScore);\n  const scoreTrend = currentScore - previousScore; // positive = improving\n  \n  // Heuristic prediction: factor in expirations and trends\n  const predict = (days, expiringCount) => {\n    // Base: current score with trend projection\n    let predicted = currentScore + (scoreTrend * (days / 30));\n    \n    // Penalty for documents that will expire\n    const expirationPenalty = totalDocs > 0 ? (expiringCount / totalDocs) * 25 : 0;\n    predicted -= expirationPenalty;\n    \n    // Penalty for already expired documents\n    const expiredPenalty = totalDocs > 0 ? (expiredDocs / totalDocs) * 15 : 0;\n    predicted -= expiredPenalty;\n    \n    // Clamp to 0-100\n    return Math.max(0, Math.min(100, Math.round(predicted)));\n  };\n  \n  const score30 = predict(30, docsExpiring30);\n  const score60 = predict(60, docsExpiring30 + docsExpiring60);\n  const score90 = predict(90, docsExpiring30 + docsExpiring60 + docsExpiring90);\n  \n  predictions.push({\n    entity_id: entityId,\n    entity_name: entityName,\n    current_score: currentScore,\n    predicted_score_30d: score30,\n    predicted_score_60d: score60,\n    predicted_score_90d: score90,\n    score_trend: scoreTrend,\n    docs_at_risk: docsExpiring30 + docsExpiring60 + docsExpiring90,\n    max_drop_predicted: currentScore - Math.min(score30, score60, score90),\n    risk_increasing: score90 < currentScore\n  });\n}\n\n// Sort by most at risk (largest predicted score drop)\npredictions.sort((a, b) => b.max_drop_predicted - a.max_drop_predicted);\n\nreturn [{\n  json: {\n    predictions: predictions,\n    entity_count: predictions.length,\n    at_risk_count: predictions.filter(p => p.risk_increasing).length,\n    critical_entities: predictions.filter(p => p.max_drop_predicted >= 20),\n    predicted_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "gemini-refine",
+      "name": "Gemini - Refine Predictions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a compliance risk prediction analyst. Review the heuristic risk predictions below and refine them with contextual analysis.\\n\\nHeuristic Predictions (top 20 at-risk entities):\\n{{ JSON.stringify($json.predictions.slice(0, 20), null, 2) }}\\n\\nFor each entity, provide:\\n1. A refined predicted score for 30/60/90 days (may adjust heuristic up or down)\\n2. Confidence level (0-1) for the prediction\\n3. Key risk factors driving the prediction\\n4. Recommended mitigation actions\\n5. Likelihood of score recovery if actions taken\\n\\nAlso provide:\\n- portfolio_risk_trend: 'improving', 'stable', or 'deteriorating' for the overall portfolio\\n- top_systemic_risks: array of risks affecting multiple entities\\n- recommended_focus_areas: prioritized array of where to allocate compliance resources\\n\\nReturn a JSON object with:\\n- refined_predictions: array of {entity_id, refined_30d, refined_60d, refined_90d, confidence, risk_factors, mitigations, recovery_likelihood}\\n- portfolio_analysis: {risk_trend, systemic_risks, focus_areas}\\n\\nReturn ONLY valid JSON.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.15,\n    \"topP\": 0.85,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 90000
+        }
+      }
+    },
+    {
+      "id": "store-predictions",
+      "name": "Store Predictions in Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1320, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/risk_predictions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"prediction_date\": { \"stringValue\": \"{{ new Date().toISOString().split('T')[0] }}\" },\n    \"entity_count\": { \"integerValue\": \"{{ $('Calculate Heuristic Predictions').first().json.entity_count }}\" },\n    \"at_risk_count\": { \"integerValue\": \"{{ $('Calculate Heuristic Predictions').first().json.at_risk_count }}\" },\n    \"predictions_summary\": { \"stringValue\": \"{{ JSON.stringify($('Calculate Heuristic Predictions').first().json.predictions.slice(0, 50)).substring(0, 10000) }}\" },\n    \"ai_refinements\": { \"stringValue\": \"{{ JSON.stringify($json.candidates?.[0]?.content?.parts?.[0]?.text || '{}').substring(0, 10000) }}\" },\n    \"created_at\": { \"stringValue\": \"{{ new Date().toISOString() }}\" }\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "check-score-drops",
+      "name": "Check for Predicted Score Drops",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1320, 520],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "score-drop-condition",
+              "leftValue": "={{ $('Calculate Heuristic Predictions').first().json.critical_entities.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "alert-risk-email",
+      "name": "Send Risk Increase Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1600, 420],
+      "parameters": {
+        "fromEmail": "predictions@complychip.io",
+        "toEmail": "admin@complychip.io",
+        "subject": "=[ComplyChip] Weekly Risk Prediction - {{ $('Calculate Heuristic Predictions').first().json.critical_entities.length }} Entities at Risk",
+        "emailType": "html",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #1a1a2e; padding: 20px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"color: #00d4aa; margin: 0; font-size: 20px;\">ComplyChip Risk Predictions</h1>\n    <p style=\"color: #8892b0; margin: 4px 0 0;\">Weekly Report - {{ new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>\n  </div>\n  <div style=\"background: #16213e; padding: 24px; color: #e0e0e0;\">\n    <h2 style=\"color: #ff6b6b; margin-top: 0;\">Predicted Score Drops Detected</h2>\n    <p><strong style=\"color: #ff6b6b;\">{{ $('Calculate Heuristic Predictions').first().json.critical_entities.length }}</strong> entities are predicted to experience significant compliance score drops (20+ points) in the next 90 days.</p>\n    <div style=\"background: #0f3460; padding: 16px; border-radius: 8px; margin: 16px 0;\">\n      <h3 style=\"color: #ffd93d; margin-top: 0;\">Portfolio Summary</h3>\n      <p>Total Entities Monitored: <strong style=\"color: #fff;\">{{ $('Calculate Heuristic Predictions').first().json.entity_count }}</strong></p>\n      <p>Entities with Increasing Risk: <strong style=\"color: #ff6b6b;\">{{ $('Calculate Heuristic Predictions').first().json.at_risk_count }}</strong></p>\n    </div>\n    <p>Immediate attention is recommended for the flagged entities to prevent compliance deterioration.</p>\n    <a href=\"http://127.0.0.1:8000\" style=\"display: inline-block; background: #00d4aa; color: #1a1a2e; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 12px;\">View Predictions Dashboard</a>\n  </div>\n  <div style=\"background: #0f3460; padding: 12px; text-align: center; border-radius: 0 0 8px 8px;\">\n    <p style=\"color: #8892b0; margin: 0; font-size: 12px;\">ComplyChip Predictive Risk Intelligence</p>\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "ComplyChip SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Monday 6AM": {
+      "main": [
+        [{ "node": "Fetch All Entity Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch All Entity Data": {
+      "main": [
+        [{ "node": "Calculate Heuristic Predictions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calculate Heuristic Predictions": {
+      "main": [
+        [{ "node": "Gemini - Refine Predictions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Refine Predictions": {
+      "main": [
+        [
+          { "node": "Store Predictions in Firestore", "type": "main", "index": 0 },
+          { "node": "Check for Predicted Score Drops", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check for Predicted Score Drops": {
+      "main": [
+        [{ "node": "Send Risk Increase Alert", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "risk-prediction" },
+    { "name": "scheduled" },
+    { "name": "weekly" }
+  ]
+}

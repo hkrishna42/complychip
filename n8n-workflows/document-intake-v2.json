@@ -1,0 +1,228 @@
+{
+  "name": "ComplyChip V3 - Document Intake Pipeline",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "document-intake",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Document intake started\"}",
+        "options": {}
+      },
+      "webhookId": "document-intake-v2"
+    },
+    {
+      "id": "download-from-gcs",
+      "name": "Download from GCS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://storage.googleapis.com/storage/v1/b/{{ $json.gcs_bucket }}/o/{{ encodeURIComponent($json.gcs_path) }}?alt=media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "notes": "Downloads the uploaded file from GCS using the gcs_path from the webhook payload"
+    },
+    {
+      "id": "gemini-analyze",
+      "name": "Gemini - Analyze Document",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "parameters": {
+        "modelId": "models/gemini-2.5-pro-preview-05-06",
+        "options": {
+          "temperature": 0.1,
+          "maxOutputTokens": 8192
+        }
+      },
+      "notes": "Sends the document to Gemini for structured metadata extraction"
+    },
+    {
+      "id": "gemini-prompt",
+      "name": "Build Gemini Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 500],
+      "parameters": {
+        "jsCode": "// Build the analysis prompt\n// The binary file data from GCS download is available for Gemini\nconst webhookData = $('Webhook Trigger').first().json;\n\nconst prompt = `You are a compliance document analyzer. Extract structured metadata from this document.\n\nReturn ONLY valid JSON (no markdown fences) with these fields:\n{\n  \"document_name\": \"formal name/title of the document\",\n  \"document_type\": \"contract|agreement|license|permit|certificate|policy|invoice|report|other\",\n  \"category\": \"legal|insurance|regulatory|safety|financial|hr|environmental|other\",\n  \"company_name\": \"primary company/organization name in the document\",\n  \"effective_date\": \"YYYY-MM-DD or null\",\n  \"expiry_date\": \"YYYY-MM-DD or null (if not explicitly stated, estimate from effective_date + standard term)\",\n  \"party_a\": \"the party the document belongs to / first party\",\n  \"party_b\": \"the counterparty / second party\",\n  \"summary\": \"2-3 sentence summary of the document's purpose and key terms\",\n  \"keywords\": [\"keyword1\", \"keyword2\", ...],\n  \"jurisdiction\": \"legal jurisdiction if mentioned, or null\",\n  \"key_clauses\": [{\"name\": \"clause name\", \"summary\": \"brief description\"}],\n  \"monetary_amounts\": [{\"description\": \"what for\", \"amount\": \"$X\", \"currency\": \"USD\"}],\n  \"compliance_requirements\": [\"requirement 1\", \"requirement 2\"],\n  \"risk_flags\": [\"any concerning terms, missing standard clauses, or compliance risks\"]\n}`;\n\nreturn [{\n  json: {\n    ...webhookData,\n    prompt: prompt\n  }\n}];"
+      },
+      "notes": "Constructs the analysis prompt with extraction schema"
+    },
+    {
+      "id": "parse-gemini-response",
+      "name": "Parse & Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "parameters": {
+        "jsCode": "// Parse Gemini response and normalize all extracted data\nconst geminiOutput = $input.first().json;\nconst webhookData = $('Webhook Trigger').first().json;\n\nlet extracted = {};\ntry {\n  let text = '';\n  // Handle various Gemini response formats\n  if (typeof geminiOutput === 'string') {\n    text = geminiOutput;\n  } else if (geminiOutput.text) {\n    text = geminiOutput.text;\n  } else if (geminiOutput.output) {\n    text = geminiOutput.output;\n  } else if (geminiOutput.candidates) {\n    text = geminiOutput.candidates[0].content.parts[0].text;\n  } else {\n    text = JSON.stringify(geminiOutput);\n  }\n  \n  // Clean markdown code fences\n  text = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  extracted = JSON.parse(text);\n} catch (e) {\n  extracted = {\n    document_name: webhookData.filename || 'Unknown',\n    document_type: webhookData.document_type || 'other',\n    category: 'other',\n    company_name: '',\n    effective_date: null,\n    expiry_date: null,\n    party_a: '',\n    party_b: '',\n    summary: 'Automated extraction failed - manual review recommended.',\n    keywords: [],\n    jurisdiction: null,\n    key_clauses: [],\n    monetary_amounts: [],\n    compliance_requirements: [],\n    risk_flags: ['extraction_failed']\n  };\n}\n\n// Normalize dates to YYYY-MM-DD\nfunction normalizeDate(d) {\n  if (!d) return null;\n  // Already ISO\n  if (/^\\d{4}-\\d{2}-\\d{2}/.test(d)) return d.substring(0, 10);\n  // mm-dd-yyyy or mm/dd/yyyy\n  const m = d.match(/^(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](\\d{4})$/);\n  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;\n  return d;\n}\n\nconst result = {\n  document_id: webhookData.document_id,\n  entity_id: webhookData.entity_id,\n  organization_id: webhookData.organization_id || '',\n  filename: webhookData.filename,\n  gcs_path: webhookData.gcs_path,\n  gcs_bucket: webhookData.gcs_bucket,\n  \n  // Gemini-extracted fields\n  document_name: extracted.document_name || webhookData.filename,\n  document_type_detected: extracted.document_type || webhookData.document_type,\n  category: extracted.category || 'other',\n  company_name: extracted.company_name || '',\n  effective_date: normalizeDate(extracted.effective_date),\n  expiry_date: normalizeDate(extracted.expiry_date),\n  party_a: extracted.party_a || '',\n  party_b: extracted.party_b || '',\n  ai_summary: extracted.summary || '',\n  ai_tags: extracted.keywords || [],\n  jurisdiction: extracted.jurisdiction || null,\n  key_clauses: extracted.key_clauses || [],\n  monetary_amounts: extracted.monetary_amounts || [],\n  compliance_requirements: extracted.compliance_requirements || [],\n  risk_flags: extracted.risk_flags || [],\n  \n  processed_at: new Date().toISOString()\n};\n\nreturn [{ json: result }];"
+      },
+      "notes": "Parses Gemini JSON, normalizes dates, merges with webhook data"
+    },
+    {
+      "id": "firestore-update",
+      "name": "Firestore - Update Document",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 2,
+      "position": [1200, 200],
+      "parameters": {
+        "operation": "update",
+        "projectId": "compliance-copilot-1b982",
+        "database": "(default)",
+        "collection": "documents",
+        "documentId": "={{ $json.document_id }}",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldPath": "name", "fieldValue": "={{ $json.document_name }}" },
+            { "fieldPath": "document_type_detected", "fieldValue": "={{ $json.document_type_detected }}" },
+            { "fieldPath": "category", "fieldValue": "={{ $json.category }}" },
+            { "fieldPath": "document_company_name", "fieldValue": "={{ $json.company_name }}" },
+            { "fieldPath": "ai_summary", "fieldValue": "={{ $json.ai_summary }}" },
+            { "fieldPath": "party_a", "fieldValue": "={{ $json.party_a }}" },
+            { "fieldPath": "party_b", "fieldValue": "={{ $json.party_b }}" },
+            { "fieldPath": "jurisdiction", "fieldValue": "={{ $json.jurisdiction }}" },
+            { "fieldPath": "effective_date", "fieldValue": "={{ $json.effective_date }}" },
+            { "fieldPath": "expiry_date", "fieldValue": "={{ $json.expiry_date }}" },
+            { "fieldPath": "processing_status", "fieldValue": "complete" },
+            { "fieldPath": "status", "fieldValue": "processed" },
+            { "fieldPath": "processed_at", "fieldValue": "={{ $json.processed_at }}" }
+          ]
+        }
+      },
+      "notes": "Updates the existing document record with all AI-extracted fields"
+    },
+    {
+      "id": "generate-embedding",
+      "name": "Gemini - Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 440],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"models/text-embedding-004\",\n  \"content\": {\n    \"parts\": [{\n      \"text\": \"{{ ($json.ai_summary || '') + ' ' + ($json.ai_tags || []).join(' ') + ' ' + ($json.company_name || '') + ' ' + ($json.document_type_detected || '') }}\"\n    }]\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "notes": "Generates vector embedding of the document summary + tags for semantic search"
+    },
+    {
+      "id": "pinecone-upsert",
+      "name": "Pinecone - Upsert Vector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1480, 440],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PINECONE_HOST }}/vectors/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"vectors\": [{\n    \"id\": \"{{ $('Parse & Normalize').first().json.document_id }}\",\n    \"values\": {{ JSON.stringify($json.embedding?.values || []) }},\n    \"metadata\": {\n      \"document_id\": \"{{ $('Parse & Normalize').first().json.document_id }}\",\n      \"entity_id\": \"{{ $('Parse & Normalize').first().json.entity_id }}\",\n      \"organization_id\": \"{{ $('Parse & Normalize').first().json.organization_id }}\",\n      \"document_type\": \"{{ $('Parse & Normalize').first().json.document_type_detected }}\",\n      \"company_name\": \"{{ $('Parse & Normalize').first().json.company_name }}\",\n      \"summary\": \"{{ $('Parse & Normalize').first().json.ai_summary }}\"\n    }\n  }],\n  \"namespace\": \"complychip-docs\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "notes": "Upserts document embedding to Pinecone for RAG / semantic search"
+    },
+    {
+      "id": "callback-backend",
+      "name": "Callback to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1480, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/webhooks/document-processed",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"document_id\": \"{{ $('Parse & Normalize').first().json.document_id }}\",\n  \"entity_id\": \"{{ $('Parse & Normalize').first().json.entity_id }}\",\n  \"status\": \"processed\",\n  \"document_name\": \"{{ $('Parse & Normalize').first().json.document_name }}\",\n  \"document_type_detected\": \"{{ $('Parse & Normalize').first().json.document_type_detected }}\",\n  \"ai_summary\": \"{{ $('Parse & Normalize').first().json.ai_summary }}\",\n  \"ai_tags\": {{ JSON.stringify($('Parse & Normalize').first().json.ai_tags || []) }},\n  \"company_name\": \"{{ $('Parse & Normalize').first().json.company_name }}\",\n  \"category\": \"{{ $('Parse & Normalize').first().json.category }}\",\n  \"party_a\": \"{{ $('Parse & Normalize').first().json.party_a }}\",\n  \"party_b\": \"{{ $('Parse & Normalize').first().json.party_b }}\",\n  \"effective_date\": \"{{ $('Parse & Normalize').first().json.effective_date }}\",\n  \"expiry_date\": \"{{ $('Parse & Normalize').first().json.expiry_date }}\",\n  \"jurisdiction\": \"{{ $('Parse & Normalize').first().json.jurisdiction }}\",\n  \"key_clauses\": {{ JSON.stringify($('Parse & Normalize').first().json.key_clauses || []) }},\n  \"monetary_amounts\": {{ JSON.stringify($('Parse & Normalize').first().json.monetary_amounts || []) }},\n  \"compliance_requirements\": {{ JSON.stringify($('Parse & Normalize').first().json.compliance_requirements || []) }},\n  \"risk_flags\": {{ JSON.stringify($('Parse & Normalize').first().json.risk_flags || []) }},\n  \"pinecone_indexed\": true\n}",
+        "options": {
+          "timeout": 15000,
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "notes": "Calls back the ComplyChip backend with all extracted data so it can compute scores and update status"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Download from GCS", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download from GCS": {
+      "main": [
+        [{ "node": "Build Gemini Prompt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Gemini Prompt": {
+      "main": [
+        [{ "node": "Gemini - Analyze Document", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Analyze Document": {
+      "main": [
+        [{ "node": "Parse & Normalize", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse & Normalize": {
+      "main": [
+        [
+          { "node": "Firestore - Update Document", "type": "main", "index": 0 },
+          { "node": "Gemini - Generate Embedding", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Firestore - Update Document": {
+      "main": [
+        [{ "node": "Callback to Backend", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Generate Embedding": {
+      "main": [
+        [{ "node": "Pinecone - Upsert Vector", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip-v3" },
+    { "name": "document-processing" },
+    { "name": "gemini" }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "complychip-v3"
+  }
+}

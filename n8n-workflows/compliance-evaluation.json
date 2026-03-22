@@ -1,0 +1,201 @@
+{
+  "name": "ComplyChip - Compliance Evaluation",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "compliance-evaluation",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Compliance evaluation started\"}",
+        "options": {}
+      },
+      "webhookId": "compliance-eval-01"
+    },
+    {
+      "id": "fetch-document",
+      "name": "Fetch Document from Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/documents/{{ $json.document_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "fetch-compliance-rules",
+      "name": "Fetch Compliance Rules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 520],
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents:runQuery",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"structuredQuery\": {\n    \"from\": [{ \"collectionId\": \"compliance_rules\" }],\n    \"where\": {\n      \"fieldFilter\": {\n        \"field\": { \"fieldPath\": \"jurisdiction\" },\n        \"op\": \"EQUAL\",\n        \"value\": { \"stringValue\": \"{{ $json.jurisdiction || 'federal' }}\" }\n      }\n    },\n    \"limit\": 50\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "gemini-gap-analysis",
+      "name": "Gemini - Gap Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [760, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a compliance gap analysis expert. Analyze the following document against the compliance rules provided and identify any gaps, missing requirements, or areas of non-compliance.\\n\\nDocument Data:\\n{{ JSON.stringify($('Fetch Document from Firestore').first().json) }}\\n\\nCompliance Rules:\\n{{ JSON.stringify($('Fetch Compliance Rules').first().json) }}\\n\\nPerform a thorough gap analysis and return a JSON object with:\\n- overall_compliance_score: 0-100 integer\\n- gaps: array of {rule_id, rule_description, gap_description, severity, remediation_steps}\\n- met_requirements: array of {rule_id, rule_description, evidence}\\n- partial_compliance: array of {rule_id, rule_description, current_state, required_state, completion_percentage}\\n- recommendations: array of prioritized action items\\n- risk_assessment: {overall_risk_level, risk_factors}\\n\\nReturn ONLY valid JSON.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"topP\": 0.85,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 90000
+        }
+      }
+    },
+    {
+      "id": "gemini-clause-anomaly",
+      "name": "Gemini - Clause Anomaly Detection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [760, 520],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a legal clause anomaly detector. Review the document clauses and identify any unusual, non-standard, or potentially problematic clauses.\\n\\nDocument Data:\\n{{ JSON.stringify($('Fetch Document from Firestore').first().json) }}\\n\\nFor each clause, evaluate:\\n1. Is it standard for this document type?\\n2. Does it contain unusual terms or conditions?\\n3. Are there any hidden obligations or risks?\\n4. Does it deviate from industry norms?\\n\\nReturn a JSON object with:\\n- anomalies: array of {clause_name, anomaly_type, description, risk_score, standard_alternative}\\n- unusual_terms: array of {term, context, concern}\\n- missing_standard_clauses: array of {clause_name, importance, description}\\n- overall_anomaly_score: 0-1 float (0 = fully standard, 1 = highly anomalous)\\n\\nReturn ONLY valid JSON.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"topP\": 0.85,\n    \"maxOutputTokens\": 4096\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "combine-results",
+      "name": "Combine Evaluation Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 400],
+      "parameters": {
+        "jsCode": "// Combine gap analysis and anomaly detection results\nconst webhookData = $('Webhook Trigger').first().json;\n\nlet gapAnalysis = {};\nlet anomalyDetection = {};\n\ntry {\n  const gapText = $('Gemini - Gap Analysis').first().json.candidates[0].content.parts[0].text;\n  gapAnalysis = JSON.parse(gapText.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim());\n} catch (e) {\n  gapAnalysis = {\n    overall_compliance_score: 0,\n    gaps: [],\n    met_requirements: [],\n    partial_compliance: [],\n    recommendations: ['Manual review required - automated analysis failed'],\n    risk_assessment: { overall_risk_level: 'unknown', risk_factors: [] }\n  };\n}\n\ntry {\n  const anomalyText = $('Gemini - Clause Anomaly Detection').first().json.candidates[0].content.parts[0].text;\n  anomalyDetection = JSON.parse(anomalyText.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim());\n} catch (e) {\n  anomalyDetection = {\n    anomalies: [],\n    unusual_terms: [],\n    missing_standard_clauses: [],\n    overall_anomaly_score: 0\n  };\n}\n\n// Compute combined compliance score\nconst complianceScore = gapAnalysis.overall_compliance_score || 0;\nconst anomalyPenalty = (anomalyDetection.overall_anomaly_score || 0) * 15;\nconst adjustedScore = Math.max(0, Math.min(100, complianceScore - anomalyPenalty));\n\nreturn [{\n  json: {\n    document_id: webhookData.document_id,\n    entity_id: webhookData.entity_id,\n    compliance_score: adjustedScore,\n    gap_analysis: gapAnalysis,\n    anomaly_detection: anomalyDetection,\n    gap_count: (gapAnalysis.gaps || []).length,\n    anomaly_count: (anomalyDetection.anomalies || []).length,\n    risk_level: adjustedScore >= 80 ? 'low' : adjustedScore >= 60 ? 'medium' : adjustedScore >= 40 ? 'high' : 'critical',\n    evaluated_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "update-firestore",
+      "name": "Update Firestore Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/documents/{{ $json.document_id }}?updateMask.fieldPaths=compliance_score&updateMask.fieldPaths=risk_level&updateMask.fieldPaths=gap_count&updateMask.fieldPaths=anomaly_count&updateMask.fieldPaths=evaluated_at",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"compliance_score\": { \"integerValue\": \"{{ Math.round($json.compliance_score) }}\" },\n    \"risk_level\": { \"stringValue\": \"{{ $json.risk_level }}\" },\n    \"gap_count\": { \"integerValue\": \"{{ $json.gap_count }}\" },\n    \"anomaly_count\": { \"integerValue\": \"{{ $json.anomaly_count }}\" },\n    \"evaluated_at\": { \"stringValue\": \"{{ $json.evaluated_at }}\" }\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "callback-analysis",
+      "name": "Callback - Analysis Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/webhooks/analysis-complete",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"document_id\": \"{{ $json.document_id }}\",\n  \"entity_id\": \"{{ $json.entity_id }}\",\n  \"compliance_score\": {{ $json.compliance_score }},\n  \"risk_level\": \"{{ $json.risk_level }}\",\n  \"gap_count\": {{ $json.gap_count }},\n  \"anomaly_count\": {{ $json.anomaly_count }},\n  \"gap_analysis\": {{ JSON.stringify($json.gap_analysis) }},\n  \"anomaly_detection\": {{ JSON.stringify($json.anomaly_detection) }},\n  \"evaluated_at\": \"{{ $json.evaluated_at }}\"\n}",
+        "options": {
+          "timeout": 10000,
+          "allowUnauthorizedCerts": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          { "node": "Fetch Document from Firestore", "type": "main", "index": 0 },
+          { "node": "Fetch Compliance Rules", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Document from Firestore": {
+      "main": [
+        [
+          { "node": "Gemini - Gap Analysis", "type": "main", "index": 0 },
+          { "node": "Gemini - Clause Anomaly Detection", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Compliance Rules": {
+      "main": [
+        [
+          { "node": "Gemini - Gap Analysis", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Gemini - Gap Analysis": {
+      "main": [
+        [{ "node": "Combine Evaluation Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Clause Anomaly Detection": {
+      "main": [
+        [{ "node": "Combine Evaluation Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "Combine Evaluation Results": {
+      "main": [
+        [
+          { "node": "Update Firestore Document", "type": "main", "index": 0 },
+          { "node": "Callback - Analysis Complete", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "compliance" },
+    { "name": "gap-analysis" }
+  ]
+}

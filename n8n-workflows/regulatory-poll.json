@@ -1,0 +1,225 @@
+{
+  "name": "ComplyChip - Regulatory Feed Monitor",
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rss-federal-register",
+      "name": "RSS - Federal Register",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [480, 200],
+      "parameters": {
+        "url": "https://www.federalregister.gov/documents/search.rss?conditions%5Btype%5D=RULE"
+      }
+    },
+    {
+      "id": "rss-sec-filings",
+      "name": "RSS - SEC EDGAR",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [480, 400],
+      "parameters": {
+        "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=&dateb=&owner=include&count=40&search_text=&start=0&output=atom"
+      }
+    },
+    {
+      "id": "rss-state-regs",
+      "name": "RSS - State Regulations",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [480, 600],
+      "parameters": {
+        "url": "https://www.regulations.gov/searchResults.rss?rpp=25&po=0&s=compliance&fp=true&ns=true"
+      }
+    },
+    {
+      "id": "normalize-feeds",
+      "name": "Normalize Feed Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 400],
+      "parameters": {
+        "jsCode": "// Normalize and deduplicate feed items from all RSS sources\nconst allItems = $input.all();\nconst normalized = [];\nconst seenUrls = new Set();\n\nfor (const item of allItems) {\n  const data = item.json;\n  const url = data.link || data.url || data.id || '';\n  \n  // Skip duplicates\n  if (seenUrls.has(url)) continue;\n  seenUrls.add(url);\n  \n  normalized.push({\n    title: data.title || 'Untitled',\n    description: (data.description || data.summary || data.content || '').substring(0, 2000),\n    url: url,\n    source: data._feedSource || 'regulatory_feed',\n    published_date: data.pubDate || data.published || data.updated || new Date().toISOString(),\n    author: data.author || data.creator || 'Unknown',\n    categories: data.categories || [],\n    raw_content: (data.content || data.description || '').substring(0, 5000)\n  });\n}\n\nreturn [{\n  json: {\n    items: normalized,\n    item_count: normalized.length,\n    polled_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "gemini-classify",
+      "name": "Gemini - Classify Regulatory Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1040, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a regulatory compliance classifier. For each regulatory update below, classify it with:\\n\\n1. severity: 'critical', 'high', 'medium', or 'low'\\n2. industries: array of affected industries (e.g., 'real_estate', 'finance', 'healthcare', 'insurance', 'construction', 'food_service', 'retail', 'technology')\\n3. jurisdictions: array of affected jurisdictions (e.g., 'federal', 'california', 'new_york', etc.)\\n4. compliance_areas: array of compliance areas (e.g., 'licensing', 'insurance', 'tax', 'environmental', 'labor', 'data_privacy', 'financial_reporting')\\n5. action_required: boolean - does this require immediate action?\\n6. summary: 1-2 sentence plain-language summary\\n7. effective_date: estimated effective date if mentioned, or null\\n\\nRegulatory items:\\n{{ JSON.stringify($json.items.slice(0, 20)) }}\\n\\nReturn a JSON array of objects, one per item, with the item's url as identifier.\\nReturn ONLY valid JSON.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"topP\": 0.85,\n    \"maxOutputTokens\": 8192\n  }\n}",
+        "options": {
+          "timeout": 90000
+        }
+      }
+    },
+    {
+      "id": "match-portfolio",
+      "name": "Match Against Org Portfolio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 400],
+      "parameters": {
+        "jsCode": "// Match classified regulatory items against organization's portfolio\nconst geminiResponse = $input.first().json;\nconst feedData = $('Normalize Feed Items').first().json;\n\nlet classifiedItems = [];\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  const cleaned = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  classifiedItems = JSON.parse(cleaned);\n} catch (e) {\n  classifiedItems = [];\n}\n\n// Merge classifications back with original feed data\nconst itemsByUrl = {};\nfor (const item of (feedData.items || [])) {\n  itemsByUrl[item.url] = item;\n}\n\nconst alerts = classifiedItems.map((classified, idx) => {\n  const original = itemsByUrl[classified.url] || feedData.items[idx] || {};\n  return {\n    alert_id: `reg_${Date.now()}_${idx}`,\n    title: original.title || classified.summary || 'Regulatory Update',\n    url: classified.url || original.url || '',\n    source: original.source || 'regulatory_feed',\n    published_date: original.published_date,\n    severity: classified.severity || 'low',\n    industries: classified.industries || [],\n    jurisdictions: classified.jurisdictions || [],\n    compliance_areas: classified.compliance_areas || [],\n    action_required: classified.action_required || false,\n    summary: classified.summary || '',\n    effective_date: classified.effective_date || null,\n    matched: true,\n    created_at: new Date().toISOString()\n  };\n});\n\nconst highSeverity = alerts.filter(a => a.severity === 'critical' || a.severity === 'high');\n\nreturn [{\n  json: {\n    alerts: alerts,\n    high_severity_alerts: highSeverity,\n    has_high_severity: highSeverity.length > 0,\n    total_alerts: alerts.length,\n    high_severity_count: highSeverity.length,\n    polled_at: feedData.polled_at\n  }\n}];"
+      }
+    },
+    {
+      "id": "store-alerts",
+      "name": "Store Alerts in Firestore",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1600, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/regulatory_alerts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"alerts\": { \"stringValue\": \"{{ JSON.stringify($json.alerts).substring(0, 10000) }}\" },\n    \"total_alerts\": { \"integerValue\": \"{{ $json.total_alerts }}\" },\n    \"high_severity_count\": { \"integerValue\": \"{{ $json.high_severity_count }}\" },\n    \"polled_at\": { \"stringValue\": \"{{ $json.polled_at }}\" }\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "check-high-severity",
+      "name": "High Severity Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1600, 520],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-severity-condition",
+              "leftValue": "={{ $json.has_high_severity }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "alert-email",
+      "name": "Send High Severity Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1880, 420],
+      "parameters": {
+        "fromEmail": "alerts@complychip.io",
+        "toEmail": "admin@complychip.io",
+        "subject": "=[ComplyChip URGENT] {{ $('Match Against Org Portfolio').first().json.high_severity_count }} High Severity Regulatory Alerts",
+        "emailType": "html",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #1a1a2e; padding: 20px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"color: #ff6b6b; margin: 0; font-size: 20px;\">URGENT: Regulatory Alert</h1>\n  </div>\n  <div style=\"background: #16213e; padding: 24px; color: #e0e0e0;\">\n    <h2 style=\"color: #ffffff; margin-top: 0;\">High Severity Regulatory Updates Detected</h2>\n    <p><strong style=\"color: #ff6b6b;\">{{ $('Match Against Org Portfolio').first().json.high_severity_count }}</strong> high-severity regulatory updates require your immediate attention.</p>\n    <p>Please review these updates in your ComplyChip dashboard immediately.</p>\n    <a href=\"http://127.0.0.1:8000\" style=\"display: inline-block; background: #ff6b6b; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 12px;\">Review Alerts Now</a>\n  </div>\n  <div style=\"background: #0f3460; padding: 12px; text-align: center; border-radius: 0 0 8px 8px;\">\n    <p style=\"color: #8892b0; margin: 0; font-size: 12px;\">ComplyChip Regulatory Monitoring</p>\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "ComplyChip SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          { "node": "RSS - Federal Register", "type": "main", "index": 0 },
+          { "node": "RSS - SEC EDGAR", "type": "main", "index": 0 },
+          { "node": "RSS - State Regulations", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RSS - Federal Register": {
+      "main": [
+        [{ "node": "Normalize Feed Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "RSS - SEC EDGAR": {
+      "main": [
+        [{ "node": "Normalize Feed Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "RSS - State Regulations": {
+      "main": [
+        [{ "node": "Normalize Feed Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Normalize Feed Items": {
+      "main": [
+        [{ "node": "Gemini - Classify Regulatory Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Classify Regulatory Items": {
+      "main": [
+        [{ "node": "Match Against Org Portfolio", "type": "main", "index": 0 }]
+      ]
+    },
+    "Match Against Org Portfolio": {
+      "main": [
+        [
+          { "node": "Store Alerts in Firestore", "type": "main", "index": 0 },
+          { "node": "High Severity Check", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "High Severity Check": {
+      "main": [
+        [{ "node": "Send High Severity Alert", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "regulatory" },
+    { "name": "scheduled" }
+  ]
+}

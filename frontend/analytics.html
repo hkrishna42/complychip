@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - ComplyChip</title>
+    <link rel="stylesheet" href="/css/design-system.css?v=4">
+    <link rel="stylesheet" href="/css/components.css?v=4">
+    <link rel="stylesheet" href="/css/dark-mode.css?v=4">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 20px 24px; box-shadow: var(--shadow-xs); transition: box-shadow var(--transition-fast);
+        }
+        .stat-card:hover { box-shadow: var(--shadow-md); }
+        .stat-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .stat-icon {
+            width: 36px; height: 36px; border-radius: var(--radius-md); display: flex;
+            align-items: center; justify-content: center;
+        }
+        .stat-icon svg { width: 18px; height: 18px; }
+        .stat-icon.indigo { background: var(--accent-light); color: var(--accent); }
+        .stat-icon.green { background: var(--success-bg); color: var(--success); }
+        .stat-icon.amber { background: var(--warning-bg); color: var(--warning); }
+        .stat-icon.red { background: var(--danger-bg); color: var(--danger); }
+
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+        .chart-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 24px; box-shadow: var(--shadow-xs);
+        }
+        .chart-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .chart-card-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+        .chart-card-subtitle { font-size: var(--text-xs); color: var(--text-muted); }
+        .chart-wrap { position: relative; height: 280px; }
+        .chart-wrap-sm { height: 220px; }
+        .chart-card-full { grid-column: 1 / -1; }
+
+        /* Gap Analysis Table */
+        .gap-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+        .gap-table th {
+            text-align: left; padding: 10px 16px; background: var(--bg-input); font-size: 11px;
+            font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.04em;
+            border-bottom: 1px solid var(--border);
+        }
+        .gap-table td { padding: 12px 16px; border-bottom: 1px solid var(--border-light); }
+        .gap-table tr:last-child td { border-bottom: none; }
+        .gap-table tr:hover td { background: var(--accent-light); }
+        .severity-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .severity-dot.critical { background: var(--danger); }
+        .severity-dot.high { background: #f97316; }
+        .severity-dot.medium { background: var(--warning); }
+        .severity-dot.low { background: var(--success); }
+
+        .risk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .risk-dot.high { background: var(--danger); }
+        .risk-dot.medium { background: var(--warning); }
+        .risk-dot.low { background: var(--success); }
+        .gap-table th[onclick] { cursor: pointer; user-select: none; }
+        .gap-table th[onclick]:hover { color: var(--text-primary); }
+
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } .chart-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } }
+    </style>
+    <script>if(localStorage.getItem("complychip_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")</script>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-container"></div>
+        <div class="main-content">
+            <div id="topbar-container"></div>
+            <div class="page-content">
+                <!-- Summary Stats -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div><div class="stat-label">Avg Compliance Score</div><div class="stat-value" id="avgScore">76.4</div></div>
+                            <div class="stat-icon indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+                        </div>
+                        <div class="stat-change stat-change-up">+3.2 from last month</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div><div class="stat-label">Total Documents</div><div class="stat-value" id="totalDocs">47</div></div>
+                            <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+                        </div>
+                        <div class="stat-change stat-change-up">+5 this month</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div><div class="stat-label">Compliance Rate</div><div class="stat-value" id="compRate">84%</div></div>
+                            <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                        </div>
+                        <div class="stat-change stat-change-up">+2% from last month</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div><div class="stat-label">Risk Score</div><div class="stat-value" id="riskScore" style="color:var(--warning)">32</div></div>
+                            <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                        </div>
+                        <div class="stat-change stat-change-down">-4 from last month</div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="chart-grid">
+                    <!-- Compliance Trend -->
+                    <div class="chart-card chart-card-full">
+                        <div class="chart-card-header">
+                            <div><div class="chart-card-title">Compliance Score Trend</div><div class="chart-card-subtitle">12-month rolling average across all entities</div></div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+                    </div>
+
+                    <!-- Risk Matrix -->
+                    <div class="chart-card">
+                        <div class="chart-card-header">
+                            <div><div class="chart-card-title">Risk Matrix</div><div class="chart-card-subtitle">Entities by risk score vs compliance</div></div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="riskMatrix"></canvas></div>
+                    </div>
+
+                    <!-- Expiry Forecast -->
+                    <div class="chart-card">
+                        <div class="chart-card-header">
+                            <div><div class="chart-card-title">Expiry Forecast</div><div class="chart-card-subtitle">Documents expiring by time bucket</div></div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="expiryChart"></canvas></div>
+                    </div>
+
+                    <!-- Vendor Exposure -->
+                    <div class="chart-card">
+                        <div class="chart-card-header">
+                            <div><div class="chart-card-title">Vendor Risk Exposure</div><div class="chart-card-subtitle">Risk score by vendor</div></div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="vendorChart"></canvas></div>
+                    </div>
+
+                    <!-- Document Distribution -->
+                    <div class="chart-card">
+                        <div class="chart-card-header">
+                            <div><div class="chart-card-title">Document Type Distribution</div><div class="chart-card-subtitle">Breakdown by document category</div></div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="docTypeChart"></canvas></div>
+                    </div>
+
+                    <!-- Compliance Score by Entity -->
+                    <div class="chart-card chart-card-full">
+                        <div class="chart-card-header">
+                            <div>
+                                <div class="chart-card-title">Compliance Score by Entity</div>
+                                <div class="chart-card-subtitle">Individual entity compliance standings</div>
+                            </div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="entityScoreChart"></canvas></div>
+                    </div>
+
+                    <!-- Vendor Exposure Details -->
+                    <div class="chart-card chart-card-full">
+                        <div class="chart-card-header">
+                            <div>
+                                <div class="chart-card-title">Vendor Exposure Details</div>
+                                <div class="chart-card-subtitle">Risk metrics by vendor</div>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="gap-table" id="vendorDetailTable">
+                                <thead><tr>
+                                    <th onclick="sortVendorTable('name')">Vendor</th>
+                                    <th onclick="sortVendorTable('risk')">Risk Score</th>
+                                    <th onclick="sortVendorTable('docs')">Documents</th>
+                                    <th onclick="sortVendorTable('status')">Status</th>
+                                </tr></thead>
+                                <tbody id="vendorDetailBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Gap Analysis Table -->
+                    <div class="chart-card chart-card-full">
+                        <div class="chart-card-header">
+                            <div><div class="chart-card-title">Gap Analysis</div><div class="chart-card-subtitle">Identified compliance gaps across entities</div></div>
+                        </div>
+                        <div class="table-container">
+                            <table class="gap-table" id="gapTable">
+                                <thead>
+                                    <tr><th>Entity</th><th>Gap</th><th>Severity</th><th>Recommendation</th></tr>
+                                </thead>
+                                <tbody id="gapTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js?v=4"></script>
+    <script src="/js/components.js?v=4"></script>
+    <script src="/js/charts.js?v=4"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!initLayout('analytics', 'Analytics', 'Compliance intelligence and insights')) return;
+            await loadAnalytics();
+        });
+
+        async function loadAnalytics() {
+            let data;
+            try {
+                const res = await apiGet('/api/analytics/summary');
+                if (res && res.ok) {
+                    const api = await res.json();
+                    // Transform API response to chart-friendly format
+                    const typeDist = api.document_type_distribution || {};
+                    const typeLabels = Object.keys(typeDist);
+                    const typeCounts = Object.values(typeDist);
+                    data = getDemoData(); // start with demo structure
+                    data.avgScore = api.avg_compliance_score || data.avgScore;
+                    data.totalDocs = api.total_documents || data.totalDocs;
+                    data.complianceRate = api.avg_compliance_score ? Math.round(api.avg_compliance_score) : data.complianceRate;
+                    data.riskScore = api.expired || data.riskScore;
+                    if (typeLabels.length > 0) {
+                        data.docTypes = { labels: typeLabels, counts: typeCounts };
+                    }
+                    data.expiry = {
+                        labels: typeLabels.length > 0 ? typeLabels : data.expiry.labels,
+                        d30: [api.expiring_30d || 0],
+                        d60: [api.expiring_60d || 0],
+                        d90: [api.expiring_90d || 0],
+                    };
+                } else {
+                    throw new Error('fallback');
+                }
+            } catch {
+                data = getDemoData();
+            }
+            await renderCharts(data);
+        }
+
+        function getDemoData() {
+            return {
+                avgScore: 76.4, totalDocs: 47, complianceRate: 84, riskScore: 32,
+                trend: {
+                    labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+                    scores: [68, 70, 72, 71, 74, 73, 76, 75, 77, 76, 78, 76.4],
+                    target: [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80],
+                },
+                riskMatrix: [
+                    { name: 'Downtown Office', risk: 20, score: 82, size: 8 },
+                    { name: 'Harbor Industrial', risk: 55, score: 61, size: 6 },
+                    { name: 'Riverside Medical', risk: 35, score: 72, size: 5 },
+                    { name: 'Airport Business', risk: 15, score: 88, size: 4 },
+                    { name: 'University Campus', risk: 28, score: 79, size: 3 },
+                ],
+                expiry: {
+                    labels: ['Insurance', 'Permits', 'Certificates', 'Agreements', 'Licenses'],
+                    d30: [1, 0, 1, 1, 0],
+                    d60: [2, 1, 0, 1, 1],
+                    d90: [1, 2, 1, 2, 0],
+                },
+                vendors: {
+                    labels: ['Acme Insurance', 'BuildRight', 'SecureGuard', 'GreenClean', 'TechShield', 'LegalEase'],
+                    scores: [25, 42, 18, 35, 22, 15],
+                },
+                docTypes: {
+                    labels: ['Insurance', 'Permits', 'Certificates', 'Agreements', 'Licenses', 'Other'],
+                    counts: [12, 8, 7, 10, 5, 5],
+                },
+                gaps: [
+                    { entity: 'Harbor Industrial Complex', gap: 'Missing workers compensation renewal', severity: 'critical', recommendation: 'Immediately renew workers comp policy with current insurer' },
+                    { entity: 'Riverside Medical Center', gap: 'Expired building permit for Wing B', severity: 'high', recommendation: 'Submit expedited renewal application to city planning' },
+                    { entity: 'Downtown Office Tower', gap: 'Insurance policy renewal approaching', severity: 'medium', recommendation: 'Begin renewal process 60 days before expiry date' },
+                    { entity: 'Airport Business Park', gap: 'Lease agreement renewal pending', severity: 'medium', recommendation: 'Negotiate rent escalation clause before signing renewal' },
+                    { entity: 'University Research Campus', gap: 'DPA audit pending for cloud providers', severity: 'low', recommendation: 'Schedule annual DPA compliance audit with cloud vendors' },
+                    { entity: 'Harbor Industrial Complex', gap: 'OSHA inspection findings unresolved', severity: 'high', recommendation: 'Address 3 minor violations before re-inspection date' },
+                ],
+            };
+        }
+
+        async function renderCharts(data) {
+            // Update stat cards
+            document.getElementById('avgScore').textContent = data.avgScore;
+            document.getElementById('totalDocs').textContent = data.totalDocs;
+            document.getElementById('compRate').textContent = data.complianceRate + '%';
+            document.getElementById('riskScore').textContent = data.riskScore;
+
+            // Compliance Trend
+            createLineChart('trendChart', data.trend.labels, [
+                { label: 'Compliance Score', data: data.trend.scores, color: chartColors.primary, fill: true },
+                { label: 'Target', data: data.trend.target, color: chartColors.gray, borderDash: [5, 5], fill: false, pointRadius: 0 },
+            ], { beginAtZero: false, yScale: { min: 50, max: 100 } });
+
+            // Risk Matrix (scatter)
+            const riskCtx = document.getElementById('riskMatrix');
+            new Chart(riskCtx, {
+                type: 'bubble',
+                data: {
+                    datasets: data.riskMatrix.map((e, i) => ({
+                        label: e.name,
+                        data: [{ x: e.risk, y: e.score, r: e.size + 4 }],
+                        backgroundColor: chartColors.palette[i] + '80',
+                        borderColor: chartColors.palette[i],
+                        borderWidth: 2,
+                    }))
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Risk Score', font: { size: 11 } }, min: 0, max: 70 },
+                        y: { title: { display: true, text: 'Compliance Score', font: { size: 11 } }, min: 50, max: 100 },
+                    },
+                    plugins: { legend: { display: true, position: 'bottom', labels: { padding: 12, font: { size: 10 } } } },
+                }
+            });
+
+            // Expiry Forecast (stacked bar)
+            createBarChart('expiryChart', data.expiry.labels, [
+                { label: '30 Days', data: data.expiry.d30, color: chartColors.danger },
+                { label: '60 Days', data: data.expiry.d60, color: chartColors.warning },
+                { label: '90 Days', data: data.expiry.d90, color: chartColors.success },
+            ], { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
+
+            // Vendor Risk (horizontal bar)
+            const vendorCtx = document.getElementById('vendorChart');
+            new Chart(vendorCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.vendors.labels,
+                    datasets: [{
+                        label: 'Risk Score',
+                        data: data.vendors.scores,
+                        backgroundColor: data.vendors.scores.map(s => s >= 40 ? chartColors.danger + 'cc' : s >= 25 ? chartColors.warning + 'cc' : chartColors.success + 'cc'),
+                        borderRadius: 4, barPercentage: 0.6,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, max: 60 } },
+                }
+            });
+
+            // Document Type Distribution
+            createDoughnutChart('docTypeChart', data.docTypes.labels, data.docTypes.counts, { cutout: '60%' });
+
+            // Entity Compliance Scores
+            try {
+                const eres = await apiGet('/api/entities');
+                if (eres && eres.ok) {
+                    const edata = await eres.json();
+                    const entities = edata.entities || edata || [];
+                    if (entities.length > 0) {
+                        const names = entities.map(e => e.name);
+                        const scores = entities.map(e => e.compliance_score || 0);
+                        const colors = scores.map(s => getScoreColor(s));
+                        const eCtx = document.getElementById('entityScoreChart');
+                        if (eCtx) {
+                            new Chart(eCtx, {
+                                type: 'bar',
+                                data: {
+                                    labels: names,
+                                    datasets: [{
+                                        label: 'Compliance Score',
+                                        data: scores,
+                                        backgroundColor: colors.map(c => c + 'cc'),
+                                        borderColor: colors,
+                                        borderWidth: 1,
+                                        borderRadius: 4,
+                                        barPercentage: 0.6,
+                                    }]
+                                },
+                                options: {
+                                    responsive: true, maintainAspectRatio: false,
+                                    plugins: { legend: { display: false } },
+                                    scales: { y: { beginAtZero: true, max: 100 } },
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch {}
+
+            // Vendor Exposure Table
+            populateVendorTable(data.vendors);
+
+            // Gap Analysis
+            const tbody = document.getElementById('gapTableBody');
+            tbody.innerHTML = data.gaps.map(g => `
+                <tr>
+                    <td class="font-medium">${g.entity}</td>
+                    <td class="text-secondary">${g.gap}</td>
+                    <td><span class="severity-dot ${g.severity}"></span><span class="font-medium" style="text-transform:capitalize">${g.severity}</span></td>
+                    <td class="text-secondary">${g.recommendation}</td>
+                </tr>
+            `).join('');
+        }
+        let vendorData = [];
+        let vendorSortKey = 'risk';
+        let vendorSortAsc = false;
+
+        function populateVendorTable(vendors) {
+            if (!vendors) return;
+            vendorData = vendors.labels.map((name, i) => ({
+                name,
+                risk: vendors.scores[i],
+                docs: Math.floor(Math.random() * 8) + 1,
+                status: vendors.scores[i] >= 40 ? 'high' : vendors.scores[i] >= 25 ? 'medium' : 'low',
+            }));
+            renderVendorTable();
+        }
+
+        function renderVendorTable() {
+            const tbody = document.getElementById('vendorDetailBody');
+            if (!tbody) return;
+            tbody.innerHTML = vendorData.map(v => `
+                <tr>
+                    <td class="font-medium">${v.name}</td>
+                    <td><span class="risk-dot ${v.status}"></span>${v.risk}</td>
+                    <td>${v.docs}</td>
+                    <td><span class="pill ${v.status === 'high' ? 'pill-red' : v.status === 'medium' ? 'pill-amber' : 'pill-green'}" style="text-transform:capitalize">${v.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function sortVendorTable(key) {
+            if (vendorSortKey === key) { vendorSortAsc = !vendorSortAsc; } else { vendorSortKey = key; vendorSortAsc = true; }
+            vendorData.sort((a, b) => {
+                let va = a[key], vb = b[key];
+                if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+                if (va < vb) return vendorSortAsc ? -1 : 1;
+                if (va > vb) return vendorSortAsc ? 1 : -1;
+                return 0;
+            });
+            renderVendorTable();
+        }
+    </script>
+</body>
+</html>

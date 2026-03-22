@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload - ComplyChip</title>
+    <link rel="stylesheet" href="/css/design-system.css?v=4">
+    <link rel="stylesheet" href="/css/components.css?v=4">
+    <link rel="stylesheet" href="/css/dark-mode.css?v=4">
+    <style>
+        .upload-container { max-width: 720px; }
+
+        /* ── Tab Navigation ── */
+        .upload-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 24px; }
+        .upload-tab {
+            padding: 12px 24px; cursor: pointer; font-weight: 600; color: var(--text-secondary);
+            border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all var(--transition-fast);
+            background: none; border-top: none; border-left: none; border-right: none; font-size: var(--text-sm);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .upload-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .upload-tab:hover { color: var(--text-primary); }
+        .upload-tab svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── Direct Upload Styles ── */
+        .upload-zone {
+            border: 2px dashed var(--border); border-radius: var(--radius-lg); padding: 48px 24px;
+            text-align: center; cursor: pointer; transition: all var(--transition-fast); background: var(--bg-card);
+        }
+        .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: var(--accent-light); }
+        .upload-zone svg { width: 48px; height: 48px; color: var(--text-muted); margin: 0 auto 12px; }
+        .upload-zone h3 { font-size: var(--text-md); font-weight: 600; margin-bottom: 4px; }
+        .upload-zone p { font-size: var(--text-sm); color: var(--text-secondary); }
+        .upload-zone .upload-hint { font-size: var(--text-xs); color: var(--text-muted); margin-top: 8px; }
+
+        .file-preview {
+            display: none; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--border);
+            border-radius: var(--radius-md); background: var(--bg-card); margin-top: 16px;
+        }
+        .file-preview.active { display: flex; }
+        .file-icon {
+            width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--accent-light);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .file-icon svg { width: 22px; height: 22px; color: var(--accent); }
+        .file-info { flex: 1; }
+        .file-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+        .file-meta { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+        .file-remove {
+            width: 28px; height: 28px; border-radius: var(--radius-sm); border: none;
+            background: transparent; color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .file-remove:hover { background: var(--danger-bg); color: var(--danger); }
+        .file-remove svg { width: 16px; height: 16px; }
+
+        .upload-form { margin-top: 24px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; display: none; }
+        .upload-form.active { display: block; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        .upload-progress { display: none; margin-top: 16px; }
+        .upload-progress.active { display: block; }
+        .progress-bar { height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.3s ease; width: 0%; }
+        .progress-text { font-size: var(--text-xs); color: var(--text-muted); margin-top: 6px; text-align: center; }
+
+        .upload-success {
+            display: none; text-align: center; padding: 40px 24px; background: var(--bg-card);
+            border: 1px solid var(--border); border-radius: var(--radius-lg); margin-top: 16px;
+        }
+        .upload-success.active { display: block; }
+        .success-icon {
+            width: 64px; height: 64px; border-radius: 50%; background: var(--success-bg);
+            display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+        }
+        .success-icon svg { width: 32px; height: 32px; color: var(--success); }
+
+        .divider-or { display: flex; align-items: center; gap: 16px; margin: 32px 0; }
+        .divider-or::before, .divider-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+        .divider-or span { font-size: var(--text-xs); color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+
+        .bulk-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; }
+        .bulk-section h3 { font-size: var(--text-md); font-weight: 600; margin-bottom: 4px; }
+        .bulk-section p { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 16px; }
+        .bulk-file-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .bulk-file-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border);
+            border-radius: var(--radius-md); background: var(--bg-input);
+        }
+        .bulk-file-item .file-name { font-size: var(--text-sm); font-weight: 500; }
+        .bulk-file-item .file-meta { font-size: var(--text-xs); color: var(--text-muted); }
+
+        /* ── Google Drive Tab Styles ── */
+        .gdrive-connect-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 48px 24px; text-align: center;
+        }
+        .gdrive-connect-card svg { margin: 0 auto 16px; }
+        .gdrive-connect-card h3 { font-size: var(--text-lg); font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .gdrive-connect-card p { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 24px; }
+        .gdrive-connect-card .btn-accent {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 24px; background: var(--accent); color: #fff; border: none;
+            border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 600;
+            cursor: pointer; transition: background var(--transition-fast);
+        }
+        .gdrive-connect-card .btn-accent:hover { background: var(--accent-hover); }
+        .gdrive-connect-card .btn-accent:disabled { opacity: 0.6; cursor: not-allowed; }
+        .gdrive-connect-card .btn-accent svg { width: 20px; height: 20px; }
+
+        .gdrive-connected-panel { display: none; }
+        .gdrive-connected-panel.active { display: block; }
+
+        .gdrive-header {
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+            padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+        }
+        .gdrive-header-info { display: flex; align-items: center; gap: 10px; }
+        .gdrive-header-info svg { width: 20px; height: 20px; color: var(--success); flex-shrink: 0; }
+        .gdrive-header-info span { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
+        .gdrive-header .btn-disconnect {
+            padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: 500;
+            color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast);
+        }
+        .gdrive-header .btn-disconnect:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+
+        .gdrive-step-bar {
+            display: flex; align-items: center; gap: 0; margin-bottom: 20px;
+            padding: 10px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+        }
+        .gdrive-step {
+            display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); font-weight: 600;
+            color: var(--text-muted); transition: color var(--transition-fast);
+        }
+        .gdrive-step .step-num {
+            width: 22px; height: 22px; border-radius: 50%; background: var(--bg-input);
+            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+        }
+        .gdrive-step.active { color: var(--accent); }
+        .gdrive-step.active .step-num { background: var(--accent); color: #fff; }
+        .gdrive-step.completed { color: var(--success); }
+        .gdrive-step.completed .step-num { background: var(--success-bg); color: var(--success); }
+        .gdrive-step-divider { flex: 1; height: 1px; background: var(--border); margin: 0 12px; }
+
+        /* Folder browser */
+        .gdrive-search {
+            width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md);
+            background: var(--bg-input); color: var(--text-primary); font-size: var(--text-sm);
+            transition: border-color var(--transition-fast);
+        }
+        .gdrive-search:focus { outline: none; border-color: var(--accent); background: var(--bg-input-focus); }
+        .gdrive-search::placeholder { color: var(--text-muted); }
+
+        .gdrive-folder-list {
+            margin-top: 12px; max-height: 320px; overflow-y: auto; border: 1px solid var(--border);
+            border-radius: var(--radius-md); background: var(--bg-card);
+        }
+        .gdrive-folder-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+            cursor: pointer; transition: background var(--transition-fast); border-bottom: 1px solid var(--border-light);
+        }
+        .gdrive-folder-item:last-child { border-bottom: none; }
+        .gdrive-folder-item:hover { background: var(--accent-light); }
+        .gdrive-folder-item.selected { background: var(--accent-light); border-left: 3px solid var(--accent); }
+        .gdrive-folder-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+        .gdrive-folder-item .folder-name { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); flex: 1; }
+        .gdrive-folder-item .folder-date { font-size: var(--text-xs); color: var(--text-muted); }
+        .gdrive-folder-count { font-size: var(--text-xs); color: var(--text-muted); margin-top: 8px; }
+
+        .gdrive-selected-bar {
+            display: none; align-items: center; gap: 10px; margin-top: 12px;
+            padding: 10px 14px; background: var(--accent-light); border: 1px solid var(--accent-border);
+            border-radius: var(--radius-md);
+        }
+        .gdrive-selected-bar.active { display: flex; }
+        .gdrive-selected-bar svg { width: 20px; height: 20px; flex-shrink: 0; }
+        .gdrive-selected-bar .folder-name { flex: 1; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+        .gdrive-selected-bar .btn-load {
+            padding: 6px 16px; background: var(--accent); color: #fff; border: none;
+            border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: 600;
+            cursor: pointer; transition: background var(--transition-fast);
+        }
+        .gdrive-selected-bar .btn-load:hover { background: var(--accent-hover); }
+
+        /* File list */
+        .gdrive-file-step { display: none; }
+        .gdrive-file-step.active { display: block; }
+        .gdrive-files-header {
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+        }
+        .gdrive-files-header h4 { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); }
+        .gdrive-files-header .btn-back {
+            padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: 500;
+            color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast);
+        }
+        .gdrive-files-header .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+
+        .gdrive-file-list {
+            max-height: 320px; overflow-y: auto; border: 1px solid var(--border);
+            border-radius: var(--radius-md); background: var(--bg-card);
+        }
+        .gdrive-file-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+            border-bottom: 1px solid var(--border-light); transition: background var(--transition-fast);
+        }
+        .gdrive-file-item:last-child { border-bottom: none; }
+        .gdrive-file-item:hover { background: var(--bg-input); }
+        .gdrive-file-item input[type="checkbox"] {
+            width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+        }
+        .gdrive-file-item .gf-info { flex: 1; min-width: 0; }
+        .gdrive-file-item .gf-name { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .gdrive-file-item .gf-meta { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+        .gdrive-file-item .gf-badge {
+            padding: 2px 8px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 600;
+            flex-shrink: 0;
+        }
+        .gdrive-file-item .gf-badge.valid { background: var(--success-bg); color: var(--success); }
+        .gdrive-file-item .gf-badge.invalid { background: var(--danger-bg); color: var(--danger); }
+        .gdrive-file-item.disabled { opacity: 0.5; }
+
+        .gdrive-upload-controls {
+            margin-top: 16px; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 20px;
+        }
+        .gdrive-upload-controls .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .gdrive-upload-actions {
+            display: flex; align-items: center; justify-content: space-between; margin-top: 16px;
+        }
+        .gdrive-upload-actions .btn-select-all {
+            padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: 500;
+            color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast);
+        }
+        .gdrive-upload-actions .btn-select-all:hover { border-color: var(--accent); color: var(--accent); }
+        .gdrive-upload-actions .btn-upload {
+            padding: 10px 24px; background: var(--accent); color: #fff; border: none;
+            border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 600;
+            cursor: pointer; transition: background var(--transition-fast);
+        }
+        .gdrive-upload-actions .btn-upload:hover { background: var(--accent-hover); }
+        .gdrive-upload-actions .btn-upload:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Upload progress for gdrive */
+        .gdrive-progress { display: none; margin-top: 16px; }
+        .gdrive-progress.active { display: block; }
+        .gdrive-progress-bar { height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+        .gdrive-progress-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.3s ease; width: 0%; }
+        .gdrive-progress-text { font-size: var(--text-xs); color: var(--text-muted); margin-top: 6px; text-align: center; }
+        .gdrive-progress-details { margin-top: 12px; max-height: 200px; overflow-y: auto; }
+        .gdrive-progress-item {
+            display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;
+            border-bottom: 1px solid var(--border-light); font-size: var(--text-xs);
+        }
+        .gdrive-progress-item .gprog-name { color: var(--text-primary); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .gdrive-progress-item .gprog-status { font-weight: 600; flex-shrink: 0; margin-left: 12px; }
+        .gdrive-progress-item .gprog-status.uploading { color: var(--accent); }
+        .gdrive-progress-item .gprog-status.success { color: var(--success); }
+        .gdrive-progress-item .gprog-status.failed { color: var(--danger); }
+
+        /* Page loader overlay */
+        .gdrive-loader {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            z-index: 100; align-items: center; justify-content: center;
+        }
+        .gdrive-loader.active { display: flex; }
+        .gdrive-loader-inner {
+            background: var(--bg-card); border-radius: var(--radius-lg); padding: 32px 40px;
+            text-align: center; box-shadow: var(--shadow-xl);
+        }
+        .gdrive-loader-inner .spinner {
+            width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .gdrive-loader-inner p { font-size: var(--text-sm); color: var(--text-secondary); }
+
+        .gdrive-empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: var(--text-sm); }
+
+        @media (max-width: 768px) {
+            .form-row, .gdrive-upload-controls .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+    <script>if(localStorage.getItem("complychip_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")</script>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-container"></div>
+        <div class="main-content">
+            <div id="topbar-container"></div>
+            <div class="page-content">
+                <div class="upload-container">
+
+                    <!-- Tab Navigation -->
+                    <div class="upload-tabs">
+                        <button class="upload-tab active" data-tab="tab-direct">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Direct Upload
+                        </button>
+                        <button class="upload-tab" data-tab="tab-gdrive">
+                            <svg viewBox="0 0 87.3 78" width="18" height="18" fill="none"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H1.2c0 1.55.4 3.1 1.2 4.5l4.2 9.35z" fill="#0066DA"/><path d="M43.65 25.15L29.9 1.35C28.55 2.15 27.4 3.25 26.6 4.65L1.2 48.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5l16.15-27.85z" fill="#00AC47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57c.8-1.4 1.2-2.95 1.2-4.5H59.85L67 66.3l6.55-11.35z" fill="#EA4335"/><path d="M43.65 25.15L57.4 1.35C56.05.55 54.5 0 52.8 0H34.5c-1.7 0-3.25.55-4.6 1.35l13.75 23.8z" fill="#00832D"/><path d="M59.85 53H27.5l-13.75 23.8c1.35.8 2.9 1.2 4.6 1.2H72.7c1.7 0 3.25-.4 4.6-1.2L59.85 53z" fill="#2684FC"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25.15 59.85 53h27.5c0-1.55-.4-3.1-1.2-4.5L73.4 26.5z" fill="#FFBA00"/></svg>
+                            Google Drive
+                        </button>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- TAB 1: Direct Upload (existing content)    -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="tab-panel active" id="tab-direct">
+                        <!-- Single Upload -->
+                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <h3>Drop files here or click to browse</h3>
+                            <p>Upload compliance documents for AI analysis</p>
+                            <div class="upload-hint">PDF, DOC, DOCX, XLS, XLSX, PNG, JPG up to 25MB</div>
+                        </div>
+                        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" style="display:none" onchange="handleFileSelect(event)">
+
+                        <!-- File Preview -->
+                        <div class="file-preview" id="filePreview">
+                            <div class="file-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name" id="fileName">document.pdf</div>
+                                <div class="file-meta" id="fileMeta">PDF - 2.4 MB</div>
+                            </div>
+                            <button class="file-remove" onclick="removeFile()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+
+                        <!-- Upload Form -->
+                        <div class="upload-form" id="uploadForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Entity <span class="required">*</span></label>
+                                    <select class="form-select" id="entitySelect">
+                                        <option value="">Select entity...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Document Type <span class="required">*</span></label>
+                                    <select class="form-select" id="docTypeSelect">
+                                        <option value="">Select type...</option>
+                                        <option value="Master Service Agreement">Master Service Agreement</option>
+                                        <option value="Contract">Contract</option>
+                                        <option value="Insurance Policy">Insurance Policy</option>
+                                        <option value="Safety Certificate">Safety Certificate</option>
+                                        <option value="Environmental Permit">Environmental Permit</option>
+                                        <option value="Vendor Agreement">Vendor Agreement</option>
+                                        <option value="NDA">NDA</option>
+                                        <option value="Building Permit">Building Permit</option>
+                                        <option value="Fire Safety Cert">Fire Safety Cert</option>
+                                        <option value="Lease Agreement">Lease Agreement</option>
+                                        <option value="Tax Compliance">Tax Compliance</option>
+                                        <option value="Business License">Business License</option>
+                                        <option value="Data Processing Agreement">Data Processing Agreement</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Expiry Date</label>
+                                    <input type="date" class="form-input" id="expiryDate">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Priority</label>
+                                    <select class="form-select" id="prioritySelect">
+                                        <option value="normal">Normal</option>
+                                        <option value="high">High</option>
+                                        <option value="critical">Critical</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-textarea" id="notes" placeholder="Add any additional notes or context..." rows="3"></textarea>
+                            </div>
+                            <div class="flex justify-end gap-3 mt-4">
+                                <button class="btn btn-secondary" onclick="resetUpload()">Cancel</button>
+                                <button class="btn btn-primary" onclick="startUpload()" id="uploadBtn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                    Upload Document
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Progress -->
+                        <div class="upload-progress" id="uploadProgress">
+                            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                            <div class="progress-text" id="progressText">Uploading... 0%</div>
+                        </div>
+
+                        <!-- Success State -->
+                        <div class="upload-success" id="uploadSuccess">
+                            <div class="success-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            </div>
+                            <h3 class="text-lg font-semibold mb-2">Upload Successful</h3>
+                            <p class="text-sm text-secondary mb-4">Your document has been uploaded and is being processed by our AI engine.</p>
+                            <div class="flex justify-center gap-3">
+                                <a href="/documents.html" class="btn btn-secondary">View in Documents</a>
+                                <button class="btn btn-primary" onclick="resetUpload()">Upload Another</button>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Upload Section -->
+                        <div class="divider-or"><span>or</span></div>
+
+                        <div class="bulk-section">
+                            <h3>Bulk Upload</h3>
+                            <p>Upload multiple files at once with shared entity assignment.</p>
+                            <div class="form-group">
+                                <label class="form-label">Shared Entity <span class="required">*</span></label>
+                                <select class="form-select" id="bulkEntity">
+                                    <option value="">Select entity...</option>
+                                </select>
+                            </div>
+                            <div class="upload-zone" style="padding:24px" onclick="document.getElementById('bulkFileInput').click()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" style="margin:0 auto 8px">
+                                    <rect x="2" y="2" width="20" height="20" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/>
+                                </svg>
+                                <p class="text-sm">Click to select multiple files</p>
+                            </div>
+                            <input type="file" id="bulkFileInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" style="display:none" onchange="handleBulkFiles(event)">
+                            <div class="bulk-file-list" id="bulkFileList"></div>
+                            <div class="flex justify-end mt-4" id="bulkActions" style="display:none">
+                                <button class="btn btn-primary" onclick="startBulkUpload()">Upload All Files</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- TAB 2: Google Drive                        -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="tab-panel" id="tab-gdrive">
+
+                        <!-- Not Connected State -->
+                        <div id="gdriveNotConnected">
+                            <div class="gdrive-connect-card">
+                                <svg viewBox="0 0 87.3 78" width="56" height="56" fill="none"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H1.2c0 1.55.4 3.1 1.2 4.5l4.2 9.35z" fill="#0066DA"/><path d="M43.65 25.15L29.9 1.35C28.55 2.15 27.4 3.25 26.6 4.65L1.2 48.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5l16.15-27.85z" fill="#00AC47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 57c.8-1.4 1.2-2.95 1.2-4.5H59.85L67 66.3l6.55-11.35z" fill="#EA4335"/><path d="M43.65 25.15L57.4 1.35C56.05.55 54.5 0 52.8 0H34.5c-1.7 0-3.25.55-4.6 1.35l13.75 23.8z" fill="#00832D"/><path d="M59.85 53H27.5l-13.75 23.8c1.35.8 2.9 1.2 4.6 1.2H72.7c1.7 0 3.25-.4 4.6-1.2L59.85 53z" fill="#2684FC"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25.15 59.85 53h27.5c0-1.55-.4-3.1-1.2-4.5L73.4 26.5z" fill="#FFBA00"/></svg>
+                                <h3>Connect your Google Drive</h3>
+                                <p>Import compliance documents directly from your Google Drive folders</p>
+                                <button class="btn-accent" id="btnConnectGDrive">
+                                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                                    Connect Google Drive
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Connected State -->
+                        <div id="gdriveConnected" class="gdrive-connected-panel">
+                            <!-- Header with user info -->
+                            <div class="gdrive-header">
+                                <div class="gdrive-header-info">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    <span id="gdriveUserLabel">Connected to Google Drive</span>
+                                </div>
+                                <button class="btn-disconnect" id="btnDisconnectGDrive">Disconnect</button>
+                            </div>
+
+                            <!-- Step indicator -->
+                            <div class="gdrive-step-bar">
+                                <div class="gdrive-step active" data-step="1"><span class="step-num">1</span> Select Folder</div>
+                                <div class="gdrive-step-divider"></div>
+                                <div class="gdrive-step" data-step="2"><span class="step-num">2</span> Choose Files</div>
+                                <div class="gdrive-step-divider"></div>
+                                <div class="gdrive-step" data-step="3"><span class="step-num">3</span> Upload</div>
+                            </div>
+
+                            <!-- Step 1: Folder browser -->
+                            <div id="gdriveFolderStep">
+                                <input type="text" class="gdrive-search" id="gdriveFolderSearch" placeholder="Search folders...">
+                                <div class="gdrive-folder-list" id="gdriveFolderList"></div>
+                                <div class="gdrive-folder-count" id="gdriveFolderCount"></div>
+                                <div class="gdrive-selected-bar" id="gdriveSelectedBar">
+                                    <svg viewBox="0 0 24 24" fill="#FF991F"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                    <span class="folder-name" id="gdriveSelectedName"></span>
+                                    <button class="btn-load" id="btnLoadFiles">Load Files</button>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: File list -->
+                            <div id="gdriveFileStep" class="gdrive-file-step">
+                                <div class="gdrive-files-header">
+                                    <h4 id="gdriveFilesHeading">Files</h4>
+                                    <button class="btn-back" id="btnBackToFolders">Back to folders</button>
+                                </div>
+                                <div class="gdrive-file-list" id="gdriveFileList"></div>
+
+                                <!-- Upload controls with entity/doctype -->
+                                <div class="gdrive-upload-controls">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label class="form-label">Entity <span class="required">*</span></label>
+                                            <select class="form-select" id="gdriveEntitySelect">
+                                                <option value="">Select entity...</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Document Type <span class="required">*</span></label>
+                                            <select class="form-select" id="gdriveDocTypeSelect">
+                                                <option value="">Select type...</option>
+                                                <option value="Master Service Agreement">Master Service Agreement</option>
+                                                <option value="Contract">Contract</option>
+                                                <option value="Insurance Policy">Insurance Policy</option>
+                                                <option value="Safety Certificate">Safety Certificate</option>
+                                                <option value="Environmental Permit">Environmental Permit</option>
+                                                <option value="Vendor Agreement">Vendor Agreement</option>
+                                                <option value="NDA">NDA</option>
+                                                <option value="Building Permit">Building Permit</option>
+                                                <option value="Fire Safety Cert">Fire Safety Cert</option>
+                                                <option value="Lease Agreement">Lease Agreement</option>
+                                                <option value="Tax Compliance">Tax Compliance</option>
+                                                <option value="Business License">Business License</option>
+                                                <option value="Data Processing Agreement">Data Processing Agreement</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="gdrive-upload-actions">
+                                        <button class="btn-select-all" id="btnSelectAll">Select All</button>
+                                        <button class="btn-upload" id="btnGDriveUpload" disabled>Upload Selected (0)</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 3: Progress -->
+                            <div id="gdriveProgressStep" class="gdrive-progress">
+                                <div class="gdrive-progress-bar"><div class="gdrive-progress-fill" id="gdriveProgressFill"></div></div>
+                                <div class="gdrive-progress-text" id="gdriveProgressText">0 of 0 files uploaded</div>
+                                <div class="gdrive-progress-details" id="gdriveProgressDetails"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- End tab panels -->
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Drive loader overlay -->
+    <div class="gdrive-loader" id="gdriveLoader">
+        <div class="gdrive-loader-inner">
+            <div class="spinner"></div>
+            <p id="gdriveLoaderText">Loading...</p>
+        </div>
+    </div>
+
+    <script src="/js/api.js?v=4"></script>
+    <script src="/js/components.js?v=4"></script>
+    <script>
+        let selectedFile = null;
+        let bulkFiles = [];
+
+        // ═══════════════════════════════════════════════════════════════
+        // Tab switching
+        // ═══════════════════════════════════════════════════════════════
+        document.querySelectorAll('.upload-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.upload-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                const panel = document.getElementById(tab.dataset.tab);
+                if (panel) panel.classList.add('active');
+            });
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // Init
+        // ═══════════════════════════════════════════════════════════════
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!initLayout('upload', 'Upload Documents', 'Upload and process compliance documents')) return;
+            setupDragDrop();
+            loadEntities();
+            gdriveInit();
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // Entity loading (shared across Direct Upload + Google Drive)
+        // ═══════════════════════════════════════════════════════════════
+        async function loadEntities() {
+            const selects = [
+                document.getElementById('entitySelect'),
+                document.getElementById('bulkEntity'),
+                document.getElementById('gdriveEntitySelect')
+            ];
+            try {
+                const res = await apiFetch('/api/entities/');
+                const data = await res.json();
+                const entities = data.entities || data || [];
+                entities.forEach(e => {
+                    const name = e.name || e.id;
+                    selects.forEach(sel => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        sel.appendChild(opt);
+                    });
+                });
+            } catch(e) {
+                console.warn('Could not load entities:', e);
+            }
+            selects.forEach(sel => {
+                const opt = document.createElement('option');
+                opt.value = '__other__';
+                opt.textContent = '+ Add new entity...';
+                sel.appendChild(opt);
+            });
+            selects.forEach(sel => {
+                sel.addEventListener('change', function() {
+                    if (this.value === '__other__') {
+                        const name = prompt('Enter entity name:');
+                        if (name && name.trim()) {
+                            const opt = document.createElement('option');
+                            opt.value = name.trim();
+                            opt.textContent = name.trim();
+                            this.insertBefore(opt, this.querySelector('[value="__other__"]'));
+                            this.value = name.trim();
+                        } else {
+                            this.value = '';
+                        }
+                    }
+                });
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Direct Upload (unchanged)
+        // ═══════════════════════════════════════════════════════════════
+        function setupDragDrop() {
+            const zone = document.getElementById('uploadZone');
+            ['dragenter', 'dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('drag-over'); }));
+            ['dragleave', 'drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('drag-over'); }));
+            zone.addEventListener('drop', ev => {
+                const file = ev.dataTransfer.files[0];
+                if (file) selectFile(file);
+            });
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) selectFile(file);
+        }
+
+        function selectFile(file) {
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileMeta').textContent = `${file.type || 'Unknown'} - ${formatFileSize(file.size)}`;
+            document.getElementById('filePreview').classList.add('active');
+            document.getElementById('uploadForm').classList.add('active');
+            document.getElementById('uploadZone').style.display = 'none';
+            document.getElementById('uploadSuccess').classList.remove('active');
+            document.getElementById('uploadProgress').classList.remove('active');
+        }
+
+        function removeFile() {
+            selectedFile = null;
+            document.getElementById('filePreview').classList.remove('active');
+            document.getElementById('uploadForm').classList.remove('active');
+            document.getElementById('uploadZone').style.display = '';
+            document.getElementById('fileInput').value = '';
+        }
+
+        function resetUpload() {
+            removeFile();
+            document.getElementById('uploadSuccess').classList.remove('active');
+            document.getElementById('uploadProgress').classList.remove('active');
+            document.getElementById('entitySelect').value = '';
+            document.getElementById('docTypeSelect').value = '';
+            document.getElementById('expiryDate').value = '';
+            document.getElementById('notes').value = '';
+        }
+
+        async function startUpload() {
+            const entity = document.getElementById('entitySelect').value;
+            const docType = document.getElementById('docTypeSelect').value;
+            if (!entity || !docType) { showToast('Please select entity and document type', 'error'); return; }
+            if (!selectedFile) { showToast('Please select a file', 'error'); return; }
+
+            document.getElementById('uploadForm').classList.remove('active');
+            document.getElementById('uploadProgress').classList.add('active');
+
+            let progress = 0;
+            const fill = document.getElementById('progressFill');
+            const text = document.getElementById('progressText');
+            const interval = setInterval(() => {
+                progress += Math.random() * 15 + 5;
+                if (progress >= 100) { progress = 100; clearInterval(interval); }
+                fill.style.width = progress + '%';
+                text.textContent = progress < 100 ? `Uploading... ${Math.round(progress)}%` : 'Processing with AI...';
+            }, 200);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('entity', entity);
+                formData.append('document_type', docType);
+                formData.append('expiry_date', document.getElementById('expiryDate').value);
+                formData.append('notes', document.getElementById('notes').value);
+
+                const res = await apiUpload('/api/upload', formData);
+                clearInterval(interval);
+                fill.style.width = '100%';
+                text.textContent = 'Complete!';
+
+                setTimeout(() => {
+                    document.getElementById('uploadProgress').classList.remove('active');
+                    document.getElementById('uploadSuccess').classList.add('active');
+                }, 500);
+            } catch {
+                clearInterval(interval);
+                setTimeout(() => {
+                    fill.style.width = '100%';
+                    text.textContent = 'Complete!';
+                    setTimeout(() => {
+                        document.getElementById('uploadProgress').classList.remove('active');
+                        document.getElementById('uploadSuccess').classList.add('active');
+                    }, 500);
+                }, 1500);
+            }
+        }
+
+        function handleBulkFiles(event) {
+            bulkFiles = Array.from(event.target.files);
+            renderBulkList();
+        }
+
+        function renderBulkList() {
+            const list = document.getElementById('bulkFileList');
+            if (bulkFiles.length === 0) { list.innerHTML = ''; document.getElementById('bulkActions').style.display = 'none'; return; }
+            document.getElementById('bulkActions').style.display = 'flex';
+            list.innerHTML = bulkFiles.map((f, i) => `
+                <div class="bulk-file-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" width="20" height="20"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <div style="flex:1">
+                        <div class="file-name">${f.name}</div>
+                        <div class="file-meta">${formatFileSize(f.size)}</div>
+                    </div>
+                    <button class="file-remove" onclick="removeBulkFile(${i})">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function removeBulkFile(index) {
+            bulkFiles.splice(index, 1);
+            renderBulkList();
+        }
+
+        async function startBulkUpload() {
+            const entity = document.getElementById('bulkEntity').value;
+            if (!entity) { showToast('Please select an entity for bulk upload', 'error'); return; }
+            if (bulkFiles.length === 0) { showToast('Please select files to upload', 'error'); return; }
+            showToast(`Uploading ${bulkFiles.length} files... (demo)`, 'info');
+            setTimeout(() => { showToast(`${bulkFiles.length} files uploaded successfully`, 'success'); bulkFiles = []; renderBulkList(); }, 2000);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Google Drive Integration
+        // ═══════════════════════════════════════════════════════════════
+        const GDRIVE_USER_ID = 'default_user';
+        let gdriveAllFolders = [];
+        let gdriveSelectedFolderId = null;
+        let gdriveSelectedFileIds = {};
+        let gdriveCurrentFiles = [];
+
+        function escHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+
+        function gdriveShowLoader(text) {
+            const el = document.getElementById('gdriveLoader');
+            const txt = document.getElementById('gdriveLoaderText');
+            if (txt) txt.textContent = text || 'Loading...';
+            if (el) el.classList.add('active');
+        }
+
+        function gdriveHideLoader() {
+            const el = document.getElementById('gdriveLoader');
+            if (el) el.classList.remove('active');
+        }
+
+        function gdriveSetStep(stepNum) {
+            document.querySelectorAll('.gdrive-step').forEach(el => {
+                const s = parseInt(el.dataset.step);
+                el.classList.remove('active', 'completed');
+                if (s < stepNum) el.classList.add('completed');
+                else if (s === stepNum) el.classList.add('active');
+            });
+        }
+
+        function gdriveSetConnected(connected) {
+            const notConn = document.getElementById('gdriveNotConnected');
+            const conn = document.getElementById('gdriveConnected');
+            if (connected) {
+                notConn.style.display = 'none';
+                conn.classList.add('active');
+            } else {
+                notConn.style.display = '';
+                conn.classList.remove('active');
+                gdriveAllFolders = [];
+                gdriveSelectedFolderId = null;
+                gdriveSelectedFileIds = {};
+                gdriveCurrentFiles = [];
+            }
+        }
+
+        // ── Check existing connection on page load ──
+        async function checkGDriveStatus() {
+            try {
+                const res = await fetch('/google-drive/recent-folders?user_id=' + encodeURIComponent(GDRIVE_USER_ID) + '&limit=1');
+                if (res.ok) {
+                    gdriveSetConnected(true);
+                    await loadGDriveFolders();
+                } else {
+                    gdriveSetConnected(false);
+                }
+            } catch {
+                gdriveSetConnected(false);
+            }
+        }
+
+        // ── Start OAuth flow ──
+        async function connectGDrive() {
+            const btn = document.getElementById('btnConnectGDrive');
+            btn.disabled = true;
+            btn.textContent = 'Connecting...';
+            try {
+                const res = await fetch('/google-drive/auth-url');
+                if (!res.ok) {
+                    const d = await res.json();
+                    throw new Error(d.detail || 'Failed to get auth URL');
+                }
+                const data = await res.json();
+                if (!data.auth_url) throw new Error('No auth_url returned');
+
+                // Open popup for OAuth
+                const popup = window.open(data.auth_url, 'gdriveAuth', 'width=600,height=700,left=200,top=100');
+                if (!popup) {
+                    // Popup blocked, redirect instead
+                    window.location.href = data.auth_url;
+                    return;
+                }
+                // Poll for popup close or listen for message
+                const pollTimer = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(pollTimer);
+                        btn.disabled = false;
+                        btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Connect Google Drive';
+                    }
+                }, 500);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Connect Google Drive';
+            }
+        }
+
+        // ── Handle OAuth callback (redirect with ?code=) ──
+        async function handleOAuthCallback(code, state) {
+            gdriveShowLoader('Completing Google login...');
+            try {
+                const res = await fetch('/google-drive/callback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, state, user_id: GDRIVE_USER_ID })
+                });
+                if (!res.ok) {
+                    const d = await res.json();
+                    throw new Error(d.detail || 'OAuth callback failed');
+                }
+                gdriveSetConnected(true);
+                // Switch to Google Drive tab
+                document.querySelectorAll('.upload-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                document.querySelector('[data-tab="tab-gdrive"]').classList.add('active');
+                document.getElementById('tab-gdrive').classList.add('active');
+                await loadGDriveFolders();
+                showToast('Connected to Google Drive', 'success');
+            } catch (err) {
+                showToast('Failed to connect: ' + err.message, 'error');
+                gdriveSetConnected(false);
+            } finally {
+                gdriveHideLoader();
+            }
+        }
+
+        // ── Load all folders ──
+        async function loadGDriveFolders(retryCount = 0) {
+            gdriveShowLoader('Loading folders...');
+            try {
+                const res = await fetch('/google-drive/all-folders?user_id=' + encodeURIComponent(GDRIVE_USER_ID) + '&max_results=1000');
+                if (res.status === 401) {
+                    if (retryCount < 1) {
+                        gdriveHideLoader();
+                        return loadGDriveFolders(retryCount + 1);
+                    }
+                    gdriveSetConnected(false);
+                    throw new Error('Session expired. Please reconnect.');
+                }
+                if (!res.ok) throw new Error('Failed to load folders');
+                const data = await res.json();
+                gdriveAllFolders = data.folders || [];
+                renderGDriveFolders(gdriveAllFolders);
+                gdriveSetStep(1);
+                showToast('Loaded ' + gdriveAllFolders.length + ' folders', 'success');
+            } catch (err) {
+                if (err.message !== 'Session expired. Please reconnect.') {
+                    showToast(err.message, 'error');
+                }
+            } finally {
+                gdriveHideLoader();
+            }
+        }
+
+        // ── Render folders ──
+        function renderGDriveFolders(folders) {
+            const list = document.getElementById('gdriveFolderList');
+            const count = document.getElementById('gdriveFolderCount');
+
+            if (count) {
+                count.textContent = folders.length + ' folder' + (folders.length !== 1 ? 's' : '') +
+                    (gdriveAllFolders.length !== folders.length ? ' (of ' + gdriveAllFolders.length + ' total)' : '');
+            }
+
+            if (folders.length === 0) {
+                list.innerHTML = '<div class="gdrive-empty">No folders found</div>';
+                return;
+            }
+
+            list.innerHTML = folders.map(f => {
+                const isSelected = f.id === gdriveSelectedFolderId;
+                const dateStr = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString() : '';
+                return `<div class="gdrive-folder-item${isSelected ? ' selected' : ''}" data-fid="${escHtml(f.id)}" data-fname="${escHtml(f.name)}">
+                    <svg viewBox="0 0 24 24" fill="#FF991F"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                    <span class="folder-name">${escHtml(f.name)}</span>
+                    <span class="folder-date">${dateStr}</span>
+                </div>`;
+            }).join('');
+
+            list.querySelectorAll('.gdrive-folder-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    gdriveSelectedFolderId = el.dataset.fid;
+                    // Update selection highlight
+                    list.querySelectorAll('.gdrive-folder-item').forEach(x => x.classList.remove('selected'));
+                    el.classList.add('selected');
+                    // Show selected bar
+                    const bar = document.getElementById('gdriveSelectedBar');
+                    document.getElementById('gdriveSelectedName').textContent = el.dataset.fname;
+                    bar.classList.add('active');
+                });
+            });
+        }
+
+        // ── Load files in folder ──
+        async function loadGDriveFiles(folderId, retryCount = 0) {
+            gdriveShowLoader('Loading files...');
+            gdriveSelectedFileIds = {};
+            gdriveCurrentFiles = [];
+            updateGDriveUploadBtn();
+
+            try {
+                const res = await fetch('/google-drive/list-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder_id: folderId, user_id: GDRIVE_USER_ID })
+                });
+                if (res.status === 401) {
+                    if (retryCount < 1) {
+                        gdriveHideLoader();
+                        return loadGDriveFiles(folderId, retryCount + 1);
+                    }
+                    gdriveSetConnected(false);
+                    throw new Error('Session expired');
+                }
+                if (!res.ok) {
+                    const d = await res.json();
+                    throw new Error(d.detail || 'Failed to list files');
+                }
+                const data = await res.json();
+
+                // Hide folder step, show file step
+                document.getElementById('gdriveFolderStep').style.display = 'none';
+                document.getElementById('gdriveFileStep').classList.add('active');
+                document.getElementById('gdriveProgressStep').classList.remove('active');
+                gdriveSetStep(2);
+
+                const valid = (data.valid_files || []).map(f => ({ ...f, _valid: true }));
+                const invalid = (data.invalid_files || []).map(f => ({ ...f, _valid: false }));
+                gdriveCurrentFiles = [...valid, ...invalid];
+
+                const folderName = document.getElementById('gdriveSelectedName').textContent;
+                document.getElementById('gdriveFilesHeading').textContent =
+                    'Files in "' + folderName + '" (' + gdriveCurrentFiles.length + ')';
+
+                renderGDriveFiles(gdriveCurrentFiles);
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                gdriveHideLoader();
+            }
+        }
+
+        // ── Render files ──
+        function renderGDriveFiles(files) {
+            const list = document.getElementById('gdriveFileList');
+
+            if (files.length === 0) {
+                list.innerHTML = '<div class="gdrive-empty">No files in this folder</div>';
+                return;
+            }
+
+            const VALID_TYPES = ['application/pdf'];
+            const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+            list.innerHTML = files.map(f => {
+                const isValid = f._valid;
+                const sizeStr = f.size ? formatFileSize(parseInt(f.size)) : '';
+                const dateStr = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString() : '';
+                const meta = [f.mimeType || '', sizeStr, dateStr].filter(Boolean).join(' -- ');
+
+                return `<div class="gdrive-file-item${isValid ? '' : ' disabled'}">
+                    <input type="checkbox" data-fid="${escHtml(f.id)}" data-fname="${escHtml(f.name)}" data-mime="${escHtml(f.mimeType || '')}" ${isValid ? '' : 'disabled'}>
+                    <div class="gf-info">
+                        <div class="gf-name">${escHtml(f.name)}</div>
+                        <div class="gf-meta">${escHtml(meta)}</div>
+                    </div>
+                    <span class="gf-badge ${isValid ? 'valid' : 'invalid'}">${isValid ? 'Valid' : 'Invalid'}</span>
+                </div>`;
+            }).join('');
+
+            list.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const fid = cb.dataset.fid;
+                    if (cb.checked) {
+                        gdriveSelectedFileIds[fid] = cb.dataset.fname;
+                    } else {
+                        delete gdriveSelectedFileIds[fid];
+                    }
+                    updateGDriveUploadBtn();
+                });
+            });
+        }
+
+        function updateGDriveUploadBtn() {
+            const btn = document.getElementById('btnGDriveUpload');
+            const count = Object.keys(gdriveSelectedFileIds).length;
+            btn.disabled = count === 0;
+            btn.textContent = count > 0 ? `Upload Selected (${count})` : 'Upload Selected (0)';
+        }
+
+        // ── Upload selected files via proxy-upload ──
+        async function uploadFromGDrive() {
+            const entity = document.getElementById('gdriveEntitySelect').value;
+            const docType = document.getElementById('gdriveDocTypeSelect').value;
+            if (!entity || !docType) {
+                showToast('Please select entity and document type', 'error');
+                return;
+            }
+
+            const ids = Object.keys(gdriveSelectedFileIds);
+            if (ids.length === 0) return;
+
+            // Build metadata lookup
+            const fileMeta = {};
+            gdriveCurrentFiles.forEach(f => { fileMeta[f.id] = f; });
+
+            // Disable controls
+            document.getElementById('btnGDriveUpload').disabled = true;
+            document.getElementById('btnSelectAll').disabled = true;
+            document.getElementById('gdriveFileList').querySelectorAll('input[type="checkbox"]').forEach(cb => cb.disabled = true);
+
+            // Show progress
+            const progressStep = document.getElementById('gdriveProgressStep');
+            progressStep.classList.add('active');
+            gdriveSetStep(3);
+
+            const fill = document.getElementById('gdriveProgressFill');
+            const text = document.getElementById('gdriveProgressText');
+            const details = document.getElementById('gdriveProgressDetails');
+            fill.style.width = '0%';
+            text.textContent = '0 of ' + ids.length + ' files uploaded';
+            details.innerHTML = '';
+
+            let processed = 0, succeeded = 0, failed = 0;
+            const total = ids.length;
+
+            for (let i = 0; i < total; i++) {
+                const fileId = ids[i];
+                const fileName = gdriveSelectedFileIds[fileId] || fileId;
+                const meta = fileMeta[fileId] || {};
+
+                // Add progress item
+                const itemId = 'gprog-' + i;
+                details.insertAdjacentHTML('beforeend',
+                    `<div class="gdrive-progress-item" id="${itemId}">
+                        <span class="gprog-name">${escHtml(fileName)}</span>
+                        <span class="gprog-status uploading">Uploading (${i+1}/${total})...</span>
+                    </div>`
+                );
+                details.scrollTop = details.scrollHeight;
+
+                try {
+                    const res = await fetch('/google-drive/proxy-upload', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            file_id: fileId,
+                            file_name: fileName,
+                            mime_type: meta.mimeType || '',
+                            user_id: GDRIVE_USER_ID,
+                            entity: entity,
+                            document_type: docType
+                        })
+                    });
+                    if (!res.ok) {
+                        const d = await res.json();
+                        throw new Error(d.detail || 'Upload failed');
+                    }
+                    succeeded++;
+                    const statusEl = document.querySelector(`#${itemId} .gprog-status`);
+                    if (statusEl) { statusEl.className = 'gprog-status success'; statusEl.textContent = 'Uploaded'; }
+                } catch (err) {
+                    failed++;
+                    const statusEl = document.querySelector(`#${itemId} .gprog-status`);
+                    if (statusEl) { statusEl.className = 'gprog-status failed'; statusEl.textContent = 'Failed: ' + err.message; }
+                }
+
+                processed++;
+                const pct = Math.round((processed / total) * 100);
+                fill.style.width = pct + '%';
+                text.textContent = processed + ' of ' + total + ' files uploaded';
+            }
+
+            // Done
+            showToast(`Upload complete: ${succeeded} succeeded, ${failed} failed`, failed > 0 ? 'error' : 'success');
+
+            // Re-enable controls
+            document.getElementById('btnGDriveUpload').disabled = false;
+            document.getElementById('btnSelectAll').disabled = false;
+            document.getElementById('gdriveFileList').querySelectorAll('input[type="checkbox"]:not(.disabled)').forEach(cb => {
+                if (!cb.closest('.disabled')) cb.disabled = false;
+            });
+        }
+
+        // ── Disconnect ──
+        async function disconnectGDrive() {
+            if (!confirm('Disconnect Google Drive?')) return;
+            try {
+                const res = await fetch('/google-drive/disconnect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: GDRIVE_USER_ID })
+                });
+                if (!res.ok) throw new Error('Disconnect failed');
+                gdriveSetConnected(false);
+                showToast('Disconnected from Google Drive', 'info');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // ── Wire up events & init ──
+        function gdriveInit() {
+            // Connect button
+            document.getElementById('btnConnectGDrive').addEventListener('click', connectGDrive);
+
+            // Disconnect button
+            document.getElementById('btnDisconnectGDrive').addEventListener('click', disconnectGDrive);
+
+            // Folder search
+            document.getElementById('gdriveFolderSearch').addEventListener('input', function() {
+                const q = this.value.trim().toLowerCase();
+                if (!q) {
+                    renderGDriveFolders(gdriveAllFolders);
+                    return;
+                }
+                renderGDriveFolders(gdriveAllFolders.filter(f => (f.name || '').toLowerCase().includes(q)));
+            });
+
+            // Load files button
+            document.getElementById('btnLoadFiles').addEventListener('click', () => {
+                if (!gdriveSelectedFolderId) {
+                    showToast('Please select a folder first', 'error');
+                    return;
+                }
+                loadGDriveFiles(gdriveSelectedFolderId);
+            });
+
+            // Back to folders
+            document.getElementById('btnBackToFolders').addEventListener('click', () => {
+                document.getElementById('gdriveFileStep').classList.remove('active');
+                document.getElementById('gdriveProgressStep').classList.remove('active');
+                document.getElementById('gdriveFolderStep').style.display = '';
+                gdriveSetStep(1);
+                gdriveSelectedFileIds = {};
+                gdriveCurrentFiles = [];
+                updateGDriveUploadBtn();
+            });
+
+            // Select All
+            document.getElementById('btnSelectAll').addEventListener('click', () => {
+                const cbs = document.getElementById('gdriveFileList').querySelectorAll('input[type="checkbox"]:not(:disabled)');
+                const allChecked = Array.from(cbs).every(cb => cb.checked);
+                cbs.forEach(cb => {
+                    cb.checked = !allChecked;
+                    if (cb.checked) gdriveSelectedFileIds[cb.dataset.fid] = cb.dataset.fname;
+                    else delete gdriveSelectedFileIds[cb.dataset.fid];
+                });
+                document.getElementById('btnSelectAll').textContent = allChecked ? 'Select All' : 'Deselect All';
+                updateGDriveUploadBtn();
+            });
+
+            // Upload button
+            document.getElementById('btnGDriveUpload').addEventListener('click', uploadFromGDrive);
+
+            // Handle OAuth callback if redirected back with ?code=
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const state = params.get('state');
+            const error = params.get('error');
+
+            if (error) {
+                showToast('Google Drive authorization failed: ' + error, 'error');
+                window.history.replaceState({}, document.title, '/upload.html');
+            } else if (code && state) {
+                window.history.replaceState({}, document.title, '/upload.html');
+                handleOAuthCallback(code, state);
+            } else {
+                // Check if already connected
+                checkGDriveStatus();
+            }
+
+            // Listen for postMessage from OAuth popup
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'gdrive-oauth-callback') {
+                    handleOAuthCallback(event.data.code, event.data.state);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+{
+  "name": "ComplyChip - Document Intake Pipeline",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "parameters": {
+        "path": "document-intake",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "responseCode": 202,
+        "responseData": "={\"status\": \"accepted\", \"message\": \"Document intake started\"}",
+        "options": {}
+      },
+      "webhookId": "document-intake-01"
+    },
+    {
+      "id": "upload-to-gcs",
+      "name": "Upload to GCS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://storage.googleapis.com/upload/storage/v1/b/compliance-copilot-1b982.firebasestorage.app/o?uploadType=media&name=documents/{{ $json.entity_id }}/{{ $json.filename }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $json.content_type || 'application/octet-stream' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "raw",
+        "body": "={{ $json.file_content }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "extract-text",
+      "name": "Extract Text from Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "// Extract text content from the uploaded document\nconst inputData = $input.all();\nconst item = inputData[0].json;\n\n// Get the file URL from GCS upload response\nconst gcsResponse = item;\nconst fileUrl = `https://storage.googleapis.com/compliance-copilot-1b982.firebasestorage.app/${gcsResponse.name}`;\n\n// For PDF/DOCX, text extraction would happen via the Gemini vision API\n// For now, pass through the document reference and any pre-extracted text\nconst originalInput = $('Webhook Trigger').first().json;\n\nreturn [{\n  json: {\n    document_id: originalInput.document_id || `doc_${Date.now()}`,\n    entity_id: originalInput.entity_id,\n    filename: originalInput.filename,\n    file_url: fileUrl,\n    gcs_path: gcsResponse.name || `documents/${originalInput.entity_id}/${originalInput.filename}`,\n    content_type: originalInput.content_type || 'application/pdf',\n    text_content: originalInput.text_content || '',\n    uploaded_at: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "gemini-metadata-extraction",
+      "name": "Gemini - Extract Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [920, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"You are a compliance document analysis system. Extract structured metadata from the following document text. Return a JSON object with these fields:\\n\\n- document_type: (e.g., 'license', 'insurance_policy', 'lease_agreement', 'permit', 'contract', 'certificate', 'tax_filing')\\n- effective_date: ISO date string or null\\n- expiration_date: ISO date string or null\\n- parties: array of party names involved\\n- jurisdiction: state/country jurisdiction\\n- key_clauses: array of {clause_name, clause_summary} objects\\n- monetary_amounts: array of {description, amount, currency} objects\\n- compliance_requirements: array of specific requirements mentioned\\n- risk_flags: array of potential compliance risks identified\\n- summary: 2-3 sentence summary of the document\\n\\nDocument text:\\n{{ $json.text_content }}\\n\\nReturn ONLY valid JSON, no markdown.\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"topP\": 0.8,\n    \"maxOutputTokens\": 4096\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "parse-metadata",
+      "name": "Parse Gemini Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300],
+      "parameters": {
+        "jsCode": "// Parse the Gemini API response and merge with document data\nconst geminiResponse = $input.first().json;\nconst docData = $('Extract Text from Document').first().json;\n\nlet metadata = {};\ntry {\n  const text = geminiResponse.candidates[0].content.parts[0].text;\n  // Remove markdown code fences if present\n  const cleaned = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  metadata = JSON.parse(cleaned);\n} catch (e) {\n  metadata = {\n    document_type: 'unknown',\n    effective_date: null,\n    expiration_date: null,\n    parties: [],\n    jurisdiction: 'unknown',\n    key_clauses: [],\n    monetary_amounts: [],\n    compliance_requirements: [],\n    risk_flags: ['metadata_extraction_failed'],\n    summary: 'Failed to extract metadata from document.'\n  };\n}\n\n// Generate a simple text embedding placeholder\n// In production, use Gemini embedding API\nconst embeddingText = `${metadata.document_type} ${metadata.summary} ${(metadata.key_clauses || []).map(c => c.clause_name).join(' ')}`;\n\nreturn [{\n  json: {\n    ...docData,\n    metadata: metadata,\n    embedding_text: embeddingText,\n    processing_status: 'metadata_extracted'\n  }\n}];"
+      }
+    },
+    {
+      "id": "pinecone-upsert",
+      "name": "Pinecone - Upsert Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1400, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "https://complychip-docs-xxxxxxx.svc.aped-4627-b74a.pinecone.io/vectors/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"vectors\": [{\n    \"id\": \"{{ $json.document_id }}\",\n    \"values\": [],\n    \"metadata\": {\n      \"entity_id\": \"{{ $json.entity_id }}\",\n      \"filename\": \"{{ $json.filename }}\",\n      \"document_type\": \"{{ $json.metadata.document_type }}\",\n      \"jurisdiction\": \"{{ $json.metadata.jurisdiction }}\",\n      \"expiration_date\": \"{{ $json.metadata.expiration_date }}\",\n      \"text\": \"{{ $json.embedding_text }}\"\n    }\n  }],\n  \"namespace\": \"compliance-docs\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "firestore-write",
+      "name": "Firestore - Write Document Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1400, 420],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://firestore.googleapis.com/v1/projects/compliance-copilot-1b982/databases/(default)/documents/documents/{{ $json.document_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"fields\": {\n    \"entity_id\": { \"stringValue\": \"{{ $json.entity_id }}\" },\n    \"filename\": { \"stringValue\": \"{{ $json.filename }}\" },\n    \"file_url\": { \"stringValue\": \"{{ $json.file_url }}\" },\n    \"gcs_path\": { \"stringValue\": \"{{ $json.gcs_path }}\" },\n    \"content_type\": { \"stringValue\": \"{{ $json.content_type }}\" },\n    \"document_type\": { \"stringValue\": \"{{ $json.metadata.document_type }}\" },\n    \"effective_date\": { \"stringValue\": \"{{ $json.metadata.effective_date || '' }}\" },\n    \"expiration_date\": { \"stringValue\": \"{{ $json.metadata.expiration_date || '' }}\" },\n    \"jurisdiction\": { \"stringValue\": \"{{ $json.metadata.jurisdiction }}\" },\n    \"summary\": { \"stringValue\": \"{{ $json.metadata.summary }}\" },\n    \"status\": { \"stringValue\": \"processed\" },\n    \"uploaded_at\": { \"stringValue\": \"{{ $json.uploaded_at }}\" },\n    \"processed_at\": { \"stringValue\": \"{{ new Date().toISOString() }}\" }\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "build-knowledge-graph",
+      "name": "Build Knowledge Graph Edges",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 300],
+      "parameters": {
+        "jsCode": "// Build knowledge graph edges from extracted metadata\nconst docData = $('Parse Gemini Response').first().json;\nconst metadata = docData.metadata;\nconst edges = [];\n\n// Entity <-> Document edge\nedges.push({\n  source: docData.entity_id,\n  target: docData.document_id,\n  relationship: 'owns_document',\n  properties: {\n    document_type: metadata.document_type,\n    uploaded_at: docData.uploaded_at\n  }\n});\n\n// Document <-> Jurisdiction edge\nif (metadata.jurisdiction && metadata.jurisdiction !== 'unknown') {\n  edges.push({\n    source: docData.document_id,\n    target: `jurisdiction_${metadata.jurisdiction.toLowerCase().replace(/\\s+/g, '_')}`,\n    relationship: 'governed_by',\n    properties: { jurisdiction: metadata.jurisdiction }\n  });\n}\n\n// Document <-> Parties edges\nfor (const party of (metadata.parties || [])) {\n  edges.push({\n    source: docData.document_id,\n    target: `party_${party.toLowerCase().replace(/\\s+/g, '_')}`,\n    relationship: 'involves_party',\n    properties: { party_name: party }\n  });\n}\n\n// Document <-> Compliance Requirements edges\nfor (const req of (metadata.compliance_requirements || [])) {\n  edges.push({\n    source: docData.document_id,\n    target: `req_${req.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 50)}`,\n    relationship: 'requires_compliance',\n    properties: { requirement: req }\n  });\n}\n\nreturn [{\n  json: {\n    document_id: docData.document_id,\n    entity_id: docData.entity_id,\n    filename: docData.filename,\n    metadata: metadata,\n    knowledge_graph_edges: edges,\n    edge_count: edges.length,\n    processing_status: 'complete'\n  }\n}];"
+      }
+    },
+    {
+      "id": "callback-processed",
+      "name": "Callback - Document Processed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1880, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/webhooks/document-processed",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"document_id\": \"{{ $json.document_id }}\",\n  \"entity_id\": \"{{ $json.entity_id }}\",\n  \"filename\": \"{{ $json.filename }}\",\n  \"status\": \"processed\",\n  \"document_type\": \"{{ $json.metadata.document_type }}\",\n  \"expiration_date\": \"{{ $json.metadata.expiration_date }}\",\n  \"jurisdiction\": \"{{ $json.metadata.jurisdiction }}\",\n  \"summary\": \"{{ $json.metadata.summary }}\",\n  \"knowledge_graph_edges\": {{ JSON.stringify($json.knowledge_graph_edges) }},\n  \"processed_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "timeout": 10000,
+          "allowUnauthorizedCerts": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Upload to GCS", "type": "main", "index": 0 }]
+      ]
+    },
+    "Upload to GCS": {
+      "main": [
+        [{ "node": "Extract Text from Document", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Text from Document": {
+      "main": [
+        [{ "node": "Gemini - Extract Metadata", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini - Extract Metadata": {
+      "main": [
+        [{ "node": "Parse Gemini Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse Gemini Response": {
+      "main": [
+        [
+          { "node": "Pinecone - Upsert Embeddings", "type": "main", "index": 0 },
+          { "node": "Firestore - Write Document Record", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Pinecone - Upsert Embeddings": {
+      "main": [
+        [{ "node": "Build Knowledge Graph Edges", "type": "main", "index": 0 }]
+      ]
+    },
+    "Firestore - Write Document Record": {
+      "main": [
+        [{ "node": "Build Knowledge Graph Edges", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Knowledge Graph Edges": {
+      "main": [
+        [{ "node": "Callback - Document Processed", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    { "name": "complychip" },
+    { "name": "document-processing" }
+  ]
+}
