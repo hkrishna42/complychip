@@ -779,6 +779,18 @@
         let gdriveAllFolders = [];
         let gdriveSelectedFolderId = null;
         let gdriveSelectedFileIds = {};
+
+        // Helper: fetch with auth token for Google Drive endpoints
+        function gdriveHeaders(extra = {}) {
+            const token = getAccessToken();
+            const h = { ...extra };
+            if (token) h['Authorization'] = 'Bearer ' + token;
+            return h;
+        }
+        function gdriveFetch(url, opts = {}) {
+            opts.headers = gdriveHeaders(opts.headers || {});
+            return fetch(url, opts);
+        }
         let gdriveCurrentFiles = [];
 
         function escHtml(s) {
@@ -827,7 +839,7 @@
         // ── Check existing connection on page load ──
         async function checkGDriveStatus() {
             try {
-                const res = await fetch('/google-drive/recent-folders?user_id=' + encodeURIComponent(GDRIVE_USER_ID) + '&limit=1');
+                const res = await gdriveFetch('/google-drive/recent-folders?user_id=' + encodeURIComponent(GDRIVE_USER_ID) + '&limit=1');
                 if (res.ok) {
                     gdriveSetConnected(true);
                     await loadGDriveFolders();
@@ -845,7 +857,7 @@
             btn.disabled = true;
             btn.textContent = 'Connecting...';
             try {
-                const res = await fetch('/google-drive/auth-url');
+                const res = await gdriveFetch('/google-drive/auth-url');
                 if (!res.ok) {
                     const d = await res.json();
                     throw new Error(d.detail || 'Failed to get auth URL');
@@ -879,7 +891,7 @@
         async function handleOAuthCallback(code, state) {
             gdriveShowLoader('Completing Google login...');
             try {
-                const res = await fetch('/google-drive/callback', {
+                const res = await gdriveFetch('/google-drive/callback', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ code, state, user_id: GDRIVE_USER_ID })
@@ -908,7 +920,7 @@
         async function loadGDriveFolders(retryCount = 0) {
             gdriveShowLoader('Loading folders...');
             try {
-                const res = await fetch('/google-drive/all-folders?user_id=' + encodeURIComponent(GDRIVE_USER_ID) + '&max_results=1000');
+                const res = await gdriveFetch('/google-drive/all-folders?user_id=' + encodeURIComponent(GDRIVE_USER_ID) + '&max_results=1000');
                 if (res.status === 401) {
                     if (retryCount < 1) {
                         gdriveHideLoader();
@@ -979,7 +991,7 @@
             updateGDriveUploadBtn();
 
             try {
-                const res = await fetch('/google-drive/list-files', {
+                const res = await gdriveFetch('/google-drive/list-files', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ folder_id: folderId, user_id: GDRIVE_USER_ID })
@@ -1120,7 +1132,7 @@
                 details.scrollTop = details.scrollHeight;
 
                 try {
-                    const res = await fetch('/google-drive/proxy-upload', {
+                    const res = await gdriveFetch('/google-drive/proxy-upload', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1166,7 +1178,7 @@
         async function disconnectGDrive() {
             if (!confirm('Disconnect Google Drive?')) return;
             try {
-                const res = await fetch('/google-drive/disconnect', {
+                const res = await gdriveFetch('/google-drive/disconnect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: GDRIVE_USER_ID })
