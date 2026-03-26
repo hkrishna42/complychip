@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -92,13 +93,30 @@ _GOOGLE_CLIENT_CONFIG: Optional[dict] = None
 
 
 def _load_google_client_config() -> dict:
-    """Load Google OAuth client config from google-drive-credentials.json."""
+    """Load Google Sign-In OAuth client config.
+
+    Priority:
+    1. GOOGLE_SIGNIN_CLIENT_ID / GOOGLE_SIGNIN_CLIENT_SECRET env vars
+    2. google-signin-credentials.json file
+    3. google-drive-credentials.json file (fallback)
+    """
     global _GOOGLE_CLIENT_CONFIG
     if _GOOGLE_CLIENT_CONFIG is not None:
         return _GOOGLE_CLIENT_CONFIG
 
+    # 1. Env vars (highest priority)
+    env_id = os.environ.get("GOOGLE_SIGNIN_CLIENT_ID", "")
+    env_secret = os.environ.get("GOOGLE_SIGNIN_CLIENT_SECRET", "")
+    if env_id and env_secret:
+        _GOOGLE_CLIENT_CONFIG = {"client_id": env_id, "client_secret": env_secret}
+        logger.info("Using Google Sign-In credentials from environment variables")
+        return _GOOGLE_CLIENT_CONFIG
+
+    # 2. Credential files
     project_root = Path(__file__).parent.parent.parent
     candidates = [
+        project_root / "google-signin-credentials.json",
+        project_root.parent / "google-signin-credentials.json",
         project_root / "google-drive-credentials.json",
         project_root.parent / "google-drive-credentials.json",
     ]
@@ -106,14 +124,13 @@ def _load_google_client_config() -> dict:
         if p.exists():
             with open(p, "r") as f:
                 data = json.load(f)
-            # Extract the 'web' or 'installed' sub-key
             cfg = data.get("web") or data.get("installed") or data
             _GOOGLE_CLIENT_CONFIG = cfg
             logger.info("Loaded Google OAuth client config from %s", p)
             return _GOOGLE_CLIENT_CONFIG
 
     raise RuntimeError(
-        "google-drive-credentials.json not found. Cannot use Google OAuth."
+        "Google Sign-In credentials not found. Set GOOGLE_SIGNIN_CLIENT_ID/SECRET env vars or provide google-signin-credentials.json."
     )
 
 
