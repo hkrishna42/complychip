@@ -230,12 +230,83 @@
             padding: 14px 20px; border-top: 1px solid var(--border); flex-shrink: 0;
         }
 
+        /* Gap Analysis Modal */
+        .gap-modal { position:fixed; inset:0; z-index:2000; display:flex; }
+        .gap-modal.hidden { display:none; }
+        .gap-modal-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.5); }
+        .gap-modal-panel {
+          position:absolute; right:0; top:0; bottom:0; width:520px; max-width:90vw;
+          background:var(--bg-card); display:flex; flex-direction:column;
+          box-shadow:-4px 0 24px rgba(0,0,0,0.15); animation:slideInRight 0.3s ease;
+        }
+        @keyframes slideInRight { from { transform:translateX(100%); } to { transform:translateX(0); } }
+        .gap-modal-header {
+          padding:20px 24px; border-bottom:1px solid var(--border);
+          display:flex; align-items:center; gap:12px;
+        }
+        .gap-modal-body { flex:1; overflow-y:auto; padding:24px; }
+        .gap-modal-close {
+          background:none; border:none; font-size:24px; cursor:pointer;
+          color:var(--text-secondary); margin-left:auto;
+        }
+        .gap-modal-close:hover { color:var(--text-primary); }
+        .gap-header-info h3 { font-size:var(--text-md); font-weight:700; margin:0; }
+        .gap-doc-name { font-size:var(--text-xs); color:var(--text-muted); margin:2px 0 0; }
+
+        /* Analysis sections */
+        .gap-section { margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--border); }
+        .gap-section:last-child { border-bottom:none; }
+        .gap-section-title {
+          font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+          color:var(--text-muted); margin-bottom:12px; display:flex; align-items:center; gap:8px;
+        }
+        .gap-section-badge {
+          background:var(--accent); color:white; font-size:10px; padding:2px 8px;
+          border-radius:10px; font-weight:600;
+        }
+
+        /* Risk score */
+        .gap-risk-display { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+        .gap-risk-badge {
+          padding:6px 16px; border-radius:var(--radius-md); font-weight:700;
+          font-size:13px; text-transform:uppercase;
+        }
+        .gap-risk-badge.high { background:#fee2e2; color:#dc2626; }
+        .gap-risk-badge.medium { background:#fef3c7; color:#d97706; }
+        .gap-risk-badge.low { background:#d1fae5; color:#059669; }
+        .gap-risk-bar { flex:1; height:8px; background:var(--bg-input); border-radius:4px; overflow:hidden; }
+        .gap-risk-fill { height:100%; border-radius:4px; transition:width 0.6s ease; }
+        .gap-risk-value { font-weight:700; font-size:14px; color:var(--text-primary); min-width:45px; text-align:right; }
+
+        /* Gap/requirement items */
+        .gap-item {
+          padding:12px; margin-bottom:8px; background:var(--bg-input);
+          border-radius:var(--radius-md); border-left:3px solid var(--border);
+        }
+        .gap-item.critical { border-left-color:#dc2626; }
+        .gap-item.high { border-left-color:#f97316; }
+        .gap-item.medium { border-left-color:#eab308; }
+        .gap-item.low { border-left-color:#22c55e; }
+        .gap-item-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+        .gap-item-title { font-weight:600; font-size:13px; }
+        .gap-item-desc { font-size:12px; color:var(--text-secondary); line-height:1.5; }
+
+        /* Status badges for regulatory */
+        .gap-status {
+          font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px;
+          text-transform:uppercase;
+        }
+        .gap-status.missing { background:#fee2e2; color:#dc2626; }
+        .gap-status.partial { background:#fef3c7; color:#d97706; }
+        .gap-status.compliant { background:#d1fae5; color:#059669; }
+
         @media (max-width: 768px) {
             .detail-panel { width: 100%; right: -100%; }
             .filter-bar { flex-direction: column; align-items: stretch; }
             .results-count { margin-left: 0; }
             .doc-grid { grid-template-columns: 1fr; }
             .viewer-card { width: 98%; max-width: none; }
+            .gap-modal-panel { width: 100%; max-width: 100vw; }
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
@@ -720,7 +791,7 @@
                         <span class="text-sm font-medium">${doc.score}</span>
                     </td>
                     <td>
-                        <button class="action-btn" onclick="event.stopPropagation(); openDetailWithAnalysis('${doc.id}')" title="Risk / Gap Analysis">
+                        <button class="action-btn" onclick="event.stopPropagation(); openGapAnalysisModal('${doc.id}')" title="Compliance Gap Analysis">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
                         </button>
                         <button class="action-btn" onclick="event.stopPropagation(); downloadDoc('${doc.id}')" title="Download">
@@ -767,7 +838,7 @@
                     <div class="doc-card-footer">
                         <span class="countdown ${countdownClass}">${daysText}</span>
                         <div class="doc-card-actions">
-                            <button class="action-btn" onclick="event.stopPropagation(); openDetailWithAnalysis('${doc.id}')" title="Risk / Gap Analysis">
+                            <button class="action-btn" onclick="event.stopPropagation(); openGapAnalysisModal('${doc.id}')" title="Compliance Gap Analysis">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
                             </button>
                             <button class="action-btn" onclick="event.stopPropagation(); downloadDoc('${doc.id}')" title="Download">
@@ -826,11 +897,6 @@
             if (highKeywords.some(k => lower.includes(k))) return 'high';
             if (medKeywords.some(k => lower.includes(k))) return 'medium';
             return 'low';
-        }
-
-        function openDetailWithAnalysis(docId) {
-            openDetail(docId);
-            setTimeout(() => runGapAnalysis(docId), 300);
         }
 
         function openDetail(docId) {
@@ -916,10 +982,6 @@
                     ${clausesHtml}
                 </div>
                 ${relatedHtml ? `<div class="detail-section"><div class="detail-section-title">Related Documents</div>${relatedHtml}</div>` : ''}
-                <div class="detail-section" id="gapAnalysisSection">
-                    <div class="detail-section-title">Compliance Gap Analysis</div>
-                    <div id="gapResults"><div style="padding:12px;color:var(--text-muted);font-size:var(--text-sm)">Click the analysis icon <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:middle;margin:0 2px"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> to run gap analysis.</div></div>
-                </div>
                 <div class="detail-section">
                     <div class="detail-section-title">Compliance Notes</div>
                     <div class="detail-note">${doc.notes || 'No notes.'}</div>
@@ -1046,30 +1108,139 @@
             viewerDoc = null;
         }
 
-        // Gap Analysis
-        async function runGapAnalysis(docId) {
-            // Resolve docId: passed explicitly from detail panel, or use viewerDoc
-            const id = docId || (viewerDoc && viewerDoc.id);
-            if (!id) return;
+        // Gap Analysis Modal
+        function openGapAnalysisModal(docId) {
+            const doc = allDocuments.find(d => d.id === docId);
+            const docName = doc ? doc.name : 'Document';
 
-            // Show loading in detail panel gap section if visible
-            const gapSection = document.getElementById('gapAnalysisSection');
-            const gapResults = document.getElementById('gapResults');
-            if (gapSection) {
-                gapSection.style.display = '';
-                gapResults.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted)"><div class="spinner" style="width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px"></div>Running compliance gap analysis...</div>';
-            }
+            document.getElementById('gapModalDocName').textContent = docName;
+            document.getElementById('gapAnalysisModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
 
+            // Show loading
+            document.getElementById('gapModalBody').innerHTML = `
+                <div style="text-align:center;padding:60px 24px;color:var(--text-muted)">
+                    <div style="width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px"></div>
+                    <div style="font-weight:600;margin-bottom:4px">Analyzing document for compliance risks...</div>
+                    <div style="font-size:var(--text-xs)">This may take up to two minutes.</div>
+                </div>
+            `;
+
+            fetchGapAnalysis(docId, docName);
+        }
+
+        function closeGapModal() {
+            document.getElementById('gapAnalysisModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        async function fetchGapAnalysis(docId, docName) {
             try {
-                const res = await apiPost(`/api/documents/${id}/analyze`);
+                const res = await apiPost(`/api/documents/${docId}/analyze`);
                 const data = res && res.ok ? await res.json() : {};
-                const gaps = data.compliance_gaps || [];
-                renderGapResults(gaps, gapResults, gapSection);
+                renderFullAnalysis(data, docName);
             } catch (err) {
-                if (gapResults) {
-                    gapResults.innerHTML = `<div style="padding:12px;color:var(--danger);font-size:var(--text-sm)">Analysis failed: ${err.message || 'Unknown error'}</div>`;
-                }
+                document.getElementById('gapModalBody').innerHTML = `
+                    <div style="text-align:center;padding:60px 24px">
+                        <div style="width:48px;height:48px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </div>
+                        <div style="font-weight:600;color:var(--danger);margin-bottom:4px">Analysis Failed</div>
+                        <div style="font-size:var(--text-xs);color:var(--text-secondary);margin-bottom:16px">${err.message || 'Unknown error'}</div>
+                        <button class="btn btn-accent" onclick="openGapAnalysisModal('${docId}')">Retry Analysis</button>
+                    </div>
+                `;
             }
+        }
+
+        function renderFullAnalysis(data, docName) {
+            // Extract analysis data - handle both nested and flat response
+            const analysis = data.analysis || data;
+            const summary = analysis.summary || '';
+            const riskScore = (analysis.risk_score || 'MEDIUM').toUpperCase();
+            const riskValue = analysis.risk_score_value || 50;
+            const gaps = analysis.compliance_gaps || data.compliance_gaps || [];
+            const reqs = analysis.regulatory_requirements || [];
+            const recs = analysis.recommendations || [];
+
+            const riskColor = riskScore === 'HIGH' ? '#dc2626' : riskScore === 'LOW' ? '#059669' : '#d97706';
+            const riskClass = riskScore.toLowerCase();
+
+            let html = '';
+
+            // Summary section
+            if (summary) {
+                html += `<div class="gap-section">
+                    <div class="gap-section-title">Summary</div>
+                    <p style="font-size:13px;line-height:1.6;color:var(--text-secondary)">${summary}</p>
+                </div>`;
+            }
+
+            // Risk Score section
+            html += `<div class="gap-section">
+                <div class="gap-section-title">Overall Risk Score</div>
+                <div class="gap-risk-display">
+                    <span class="gap-risk-badge ${riskClass}">${riskScore}</span>
+                    <div class="gap-risk-bar"><div class="gap-risk-fill" style="width:${riskValue}%;background:${riskColor}"></div></div>
+                    <span class="gap-risk-value">${riskValue}/100</span>
+                </div>
+            </div>`;
+
+            // Compliance Gaps section
+            if (gaps.length > 0) {
+                html += `<div class="gap-section">
+                    <div class="gap-section-title">Compliance Gaps <span class="gap-section-badge">${gaps.length}</span></div>
+                    ${gaps.map(g => {
+                        const sev = (g.severity || g.priority || 'medium').toLowerCase();
+                        return `<div class="gap-item ${sev}">
+                            <div class="gap-item-header">
+                                <span class="gap-item-title">${g.title || g.rule_name || ''}</span>
+                                <span class="pill ${sev === 'critical' ? 'pill-danger' : sev === 'high' ? 'pill-warning' : sev === 'low' ? 'pill-success' : 'pill-warning'}">${sev}</span>
+                            </div>
+                            <div class="gap-item-desc">${g.description || ''}</div>
+                            ${g.recommendation ? `<div style="font-size:11px;color:var(--accent);margin-top:6px">&#x1f4a1; ${g.recommendation}</div>` : ''}
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            }
+
+            // Regulatory Requirements section
+            if (reqs.length > 0) {
+                html += `<div class="gap-section">
+                    <div class="gap-section-title">Regulatory Requirements <span class="gap-section-badge">${reqs.length}</span></div>
+                    ${reqs.map(r => `<div class="gap-item" style="border-left-color:var(--border)">
+                        <div class="gap-item-header">
+                            <span class="gap-item-title">${r.regulation || ''}</span>
+                            <span class="gap-status ${(r.status || '').toLowerCase()}">${r.status || ''}</span>
+                        </div>
+                        <div class="gap-item-desc">${r.description || ''}</div>
+                    </div>`).join('')}
+                </div>`;
+            }
+
+            // Recommendations section
+            if (recs.length > 0) {
+                html += `<div class="gap-section">
+                    <div class="gap-section-title">Recommendations <span class="gap-section-badge">${recs.length}</span></div>
+                    ${recs.map(r => {
+                        const pri = (r.priority || 'medium').toLowerCase();
+                        return `<div class="gap-item ${pri}">
+                            <div class="gap-item-header">
+                                <span class="gap-item-title">${r.title || ''}</span>
+                                <span class="pill ${pri === 'high' ? 'pill-danger' : pri === 'low' ? 'pill-success' : 'pill-warning'}">${pri}</span>
+                            </div>
+                            <div class="gap-item-desc">${r.description || ''}</div>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            }
+
+            // No data fallback
+            if (!html) {
+                html = '<div style="padding:24px;text-align:center;color:var(--success)">No compliance issues detected.</div>';
+            }
+
+            document.getElementById('gapModalBody').innerHTML = html;
         }
 
         function getGapSeverityColor(severity) {
@@ -1092,28 +1263,6 @@
             }
         }
 
-        function renderGapResults(gaps, container, section) {
-            if (!container) return;
-            if (!gaps || gaps.length === 0) {
-                container.innerHTML = '<div style="padding:12px;color:var(--success);font-size:var(--text-sm)">No compliance gaps detected.</div>';
-                if (section) section.style.display = '';
-                return;
-            }
-            if (section) section.style.display = '';
-            container.innerHTML = gaps.map(gap => {
-                const sevColor = getGapSeverityColor(gap.severity);
-                const sevPill = getGapSeverityPillClass(gap.severity);
-                return `<div style="border-left:3px solid ${sevColor};padding:12px;margin-bottom:8px;background:var(--bg-input);border-radius:var(--radius-md)">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                        <span style="font-weight:600;font-size:var(--text-sm)">${gap.rule_name || ''}</span>
-                        <span class="pill ${sevPill}">${gap.severity || ''}</span>
-                    </div>
-                    <p style="font-size:var(--text-xs);color:var(--text-secondary);margin:4px 0">${gap.description || ''}</p>
-                    <p style="font-size:var(--text-xs);color:var(--accent);margin:4px 0">${gap.recommendation || ''}</p>
-                </div>`;
-            }).join('');
-        }
-
         function viewerZoomIn() {
             viewerZoom = Math.min(viewerZoom + 20, 200);
             document.getElementById('viewerZoomLevel').textContent = viewerZoom + '%';
@@ -1134,7 +1283,9 @@
         // Close viewer on Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                if (document.getElementById('docViewerModal').classList.contains('active')) {
+                if (!document.getElementById('gapAnalysisModal').classList.contains('hidden')) {
+                    closeGapModal();
+                } else if (document.getElementById('docViewerModal').classList.contains('active')) {
                     closeDocViewer();
                 } else if (document.getElementById('detailPanel').classList.contains('active')) {
                     closeDetail();
@@ -1158,5 +1309,23 @@
             showToast('Download link generated (demo mode)', 'info');
         }
     </script>
+
+    <!-- Gap Analysis Full-Screen Modal -->
+    <div id="gapAnalysisModal" class="gap-modal hidden">
+        <div class="gap-modal-overlay" onclick="closeGapModal()"></div>
+        <div class="gap-modal-panel">
+            <div class="gap-modal-header">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <div class="gap-header-info">
+                    <h3>Risk &amp; Gap Analysis</h3>
+                    <p id="gapModalDocName" class="gap-doc-name"></p>
+                </div>
+                <button class="gap-modal-close" onclick="closeGapModal()">&times;</button>
+            </div>
+            <div class="gap-modal-body" id="gapModalBody">
+                <!-- Loading / Results / Error rendered here -->
+            </div>
+        </div>
+    </div>
 </body>
 </html>

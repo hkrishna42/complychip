@@ -63,8 +63,31 @@ async function apiUpload(url, formData) {
     return fetch(url, { method: 'POST', headers, body: formData });
 }
 
-// Logout
-function logout() {
+// Track user activity (fire-and-forget)
+function trackActivity(action, resourceType = '', resourceId = '', details = {}) {
+    const token = getAccessToken();
+    if (!token) return;
+    fetch('/api/activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ action, resource_type: resourceType, resource_id: resourceId, details })
+    }).catch(() => {}); // silently ignore errors
+}
+
+// Auto-track page views
+document.addEventListener('DOMContentLoaded', () => {
+    if (isAuthenticated()) {
+        const page = window.location.pathname.replace('.html', '').replace(/^\//, '') || 'login';
+        trackActivity('page_view', 'page', page);
+    }
+});
+
+// Logout with server-side session invalidation
+async function logout() {
+    try {
+        await apiFetch('/auth/logout', { method: 'POST' });
+    } catch (e) {} // continue even if server call fails
+    trackActivity('logout', 'session');
     clearAuth();
     window.location.href = '/';
 }

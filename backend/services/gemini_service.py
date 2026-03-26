@@ -177,14 +177,15 @@ def _demo_chat_response(messages: list) -> str:
 # ---------------------------------------------------------------------------
 
 _GAP_PROMPT = """Analyze the following document data against the compliance rules.
-Identify compliance gaps where the document does not meet the rule requirements.
+Perform a comprehensive compliance gap analysis and return a structured JSON object.
 
-Return a JSON array of gap objects with keys:
-- rule_id: the rule identifier
-- rule_name: name of the rule
-- severity: "critical", "high", "medium", or "low"
-- description: what is missing or non-compliant
-- recommendation: how to remediate
+Return a JSON object with these keys:
+- summary: A 2-4 sentence overall compliance assessment
+- risk_score: "HIGH", "MEDIUM", or "LOW"
+- risk_score_value: numerical score from 0-100 (0 = fully compliant, 100 = critical risk)
+- compliance_gaps: array of objects with keys: title, description, severity ("critical", "high", "medium", or "low")
+- regulatory_requirements: array of objects with keys: regulation, description, status ("missing", "partial", or "compliant")
+- recommendations: array of objects with keys: title, description, priority ("high", "medium", or "low")
 
 Document data: {doc_data}
 
@@ -192,13 +193,14 @@ Compliance rules: {rules}
 """
 
 
-def analyze_compliance_gaps(doc_data: dict, rules: list) -> list:
-    """Analyze document data against compliance rules and return gaps.
+def analyze_compliance_gaps(doc_data: dict, rules: list) -> dict:
+    """Analyze document data against compliance rules and return a rich analysis dict.
 
-    Falls back to sample gaps when Gemini is not configured.
+    Returns a dict with summary, risk_score, compliance_gaps, regulatory_requirements,
+    and recommendations. Falls back to demo analysis when Gemini is not configured.
     """
     if not _init_gemini():
-        return _demo_gaps()
+        return _demo_analysis()
 
     try:
         prompt = _GAP_PROMPT.format(
@@ -214,33 +216,160 @@ def analyze_compliance_gaps(doc_data: dict, rules: list) -> list:
         return json.loads(raw)
     except Exception as e:
         print(f"Warning: Gap analysis failed: {e}")
-        return _demo_gaps()
+        return _demo_analysis()
 
 
-def _demo_gaps() -> list:
-    return [
-        {
-            "rule_id": "REG-001",
-            "rule_name": "Insurance Certificate Validity",
-            "severity": "critical",
-            "description": "General liability insurance certificate has expired.",
-            "recommendation": "Request updated certificate of insurance from the vendor immediately.",
-        },
-        {
-            "rule_id": "REG-005",
-            "rule_name": "Data Processing Agreement",
-            "severity": "high",
-            "description": "No Data Processing Agreement on file for vendors handling PII.",
-            "recommendation": "Execute a DPA with the vendor before continuing data sharing.",
-        },
-        {
-            "rule_id": "REG-012",
-            "rule_name": "Safety Training Records",
-            "severity": "medium",
-            "description": "Safety training certifications are older than 12 months.",
-            "recommendation": "Schedule refresher safety training for all on-site personnel.",
-        },
-    ]
+def _demo_analysis() -> dict:
+    return {
+        "summary": (
+            "The document exhibits moderate compliance with standard regulatory requirements. "
+            "Several critical gaps were identified in insurance coverage and data processing agreements. "
+            "Immediate remediation is recommended for high-severity items to maintain vendor compliance posture."
+        ),
+        "risk_score": "MEDIUM",
+        "risk_score_value": 62,
+        "compliance_gaps": [
+            {
+                "title": "Insurance Certificate Expired",
+                "description": "General liability insurance certificate has expired or is not on file. Coverage lapse creates significant organizational risk exposure.",
+                "severity": "critical",
+            },
+            {
+                "title": "Missing Data Processing Agreement",
+                "description": "No Data Processing Agreement (DPA) on file for vendors handling personally identifiable information (PII).",
+                "severity": "critical",
+            },
+            {
+                "title": "Inadequate Termination Provisions",
+                "description": "Termination clause lacks clear provisions for cause-based termination and does not specify data return/destruction obligations.",
+                "severity": "high",
+            },
+            {
+                "title": "Liability Cap Below Standard",
+                "description": "Limitation of liability is capped at 1x annual fees, which is below the industry standard of 2-3x for services of this nature.",
+                "severity": "high",
+            },
+            {
+                "title": "Confidentiality Clause Gaps",
+                "description": "Confidentiality provisions do not address survival period post-termination or carve-outs for legally compelled disclosures.",
+                "severity": "medium",
+            },
+            {
+                "title": "No Force Majeure Clause",
+                "description": "Agreement does not include a force majeure clause addressing service continuity during extraordinary events.",
+                "severity": "medium",
+            },
+            {
+                "title": "Intellectual Property Ownership Unclear",
+                "description": "IP ownership for work product and deliverables is not clearly assigned, creating potential disputes.",
+                "severity": "medium",
+            },
+            {
+                "title": "Audit Rights Not Defined",
+                "description": "No contractual right to audit vendor compliance, security practices, or subcontractor arrangements.",
+                "severity": "low",
+            },
+        ],
+        "regulatory_requirements": [
+            {
+                "regulation": "Insurance Certificate Validity (REG-001)",
+                "description": "Valid general liability and professional indemnity insurance certificates must be maintained on file.",
+                "status": "missing",
+            },
+            {
+                "regulation": "Data Processing Agreement (REG-003)",
+                "description": "A signed DPA compliant with GDPR Article 28 is required for all vendors processing personal data.",
+                "status": "missing",
+            },
+            {
+                "regulation": "Contract Expiration Monitoring (REG-002)",
+                "description": "Active contracts must not be expired and renewal tracking must be in place.",
+                "status": "partial",
+            },
+            {
+                "regulation": "Liability Limitations (REG-004)",
+                "description": "Contracts must include mutual liability limitations meeting minimum coverage thresholds.",
+                "status": "partial",
+            },
+            {
+                "regulation": "Termination Provisions (REG-005)",
+                "description": "Clear termination terms with notice periods, data handling, and transition support are required.",
+                "status": "partial",
+            },
+            {
+                "regulation": "Confidentiality & NDA (REG-006)",
+                "description": "Mutual confidentiality obligations with survival clauses must be included.",
+                "status": "compliant",
+            },
+            {
+                "regulation": "Force Majeure (REG-007)",
+                "description": "Force majeure provisions addressing business continuity and service-level commitments.",
+                "status": "missing",
+            },
+            {
+                "regulation": "Intellectual Property Rights (REG-008)",
+                "description": "Clear assignment or licensing of IP for deliverables and pre-existing materials.",
+                "status": "missing",
+            },
+            {
+                "regulation": "Compliance Reporting (REG-009)",
+                "description": "Periodic compliance reporting and certification obligations for regulated activities.",
+                "status": "partial",
+            },
+            {
+                "regulation": "Audit Rights (REG-010)",
+                "description": "Contractual right to audit vendor operations, security controls, and subcontractor compliance.",
+                "status": "missing",
+            },
+            {
+                "regulation": "Indemnification (REG-011)",
+                "description": "Mutual indemnification for third-party claims arising from breach of obligations.",
+                "status": "partial",
+            },
+        ],
+        "recommendations": [
+            {
+                "title": "Obtain Updated Insurance Certificates",
+                "description": "Request current certificates of insurance from the vendor covering general liability, professional indemnity, and cyber liability. Set calendar reminders for annual renewal verification.",
+                "priority": "high",
+            },
+            {
+                "title": "Execute Data Processing Agreement",
+                "description": "Draft and execute a GDPR-compliant DPA with the vendor before any further personal data sharing. Include sub-processor requirements and breach notification timelines.",
+                "priority": "high",
+            },
+            {
+                "title": "Strengthen Termination Clause",
+                "description": "Amend the agreement to include cause-based termination triggers, data return/destruction timelines, and transition assistance obligations.",
+                "priority": "high",
+            },
+            {
+                "title": "Negotiate Liability Cap Increase",
+                "description": "Renegotiate the limitation of liability to at least 2x annual contract value, with carve-outs for data breaches, IP infringement, and confidentiality violations.",
+                "priority": "medium",
+            },
+            {
+                "title": "Add Force Majeure Provisions",
+                "description": "Include a force majeure clause with defined triggering events, notification requirements, and termination rights for prolonged force majeure.",
+                "priority": "medium",
+            },
+            {
+                "title": "Clarify IP Ownership Terms",
+                "description": "Define clear ownership of work product, license grants for pre-existing IP, and rights upon termination of the agreement.",
+                "priority": "medium",
+            },
+            {
+                "title": "Establish Audit Rights",
+                "description": "Add contractual provisions granting the right to audit vendor compliance, security practices, and subcontractor arrangements on reasonable notice.",
+                "priority": "low",
+            },
+            {
+                "title": "Implement Compliance Reporting Cadence",
+                "description": "Establish quarterly compliance reporting requirements including certifications, incident summaries, and regulatory change notifications.",
+                "priority": "low",
+            },
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -536,17 +536,23 @@ async def analyze_document(doc_id: str, user: dict = Depends(get_current_user)):
 
     # Gap analysis against compliance rules
     rules = [
-        {"id": "REG-001", "name": "Insurance Certificate Validity", "description": "Valid insurance certificate required", "severity": "critical"},
-        {"id": "REG-002", "name": "Contract Expiration", "description": "Contract must not be expired", "severity": "high"},
-        {"id": "REG-003", "name": "Data Processing Agreement", "description": "DPA required for data handling", "severity": "high"},
-        {"id": "REG-004", "name": "Liability Clause", "description": "Must include liability limitations", "severity": "medium"},
-        {"id": "REG-005", "name": "Termination Clause", "description": "Clear termination terms required", "severity": "medium"},
+        {"id": "REG-001", "name": "Insurance Certificate Validity", "description": "Valid general liability and professional indemnity insurance certificates required", "severity": "critical"},
+        {"id": "REG-002", "name": "Contract Expiration", "description": "Contract must not be expired and renewal tracking must be in place", "severity": "high"},
+        {"id": "REG-003", "name": "Data Processing Agreement", "description": "GDPR-compliant DPA required for all vendors processing personal data", "severity": "high"},
+        {"id": "REG-004", "name": "Liability Limitations", "description": "Mutual liability limitations meeting minimum coverage thresholds required", "severity": "medium"},
+        {"id": "REG-005", "name": "Termination Provisions", "description": "Clear termination terms with notice periods, data handling, and transition support", "severity": "medium"},
+        {"id": "REG-006", "name": "Confidentiality & NDA", "description": "Mutual confidentiality obligations with survival clauses post-termination", "severity": "medium"},
+        {"id": "REG-007", "name": "Force Majeure", "description": "Force majeure provisions addressing business continuity and SLA commitments", "severity": "medium"},
+        {"id": "REG-008", "name": "Intellectual Property Rights", "description": "Clear IP ownership assignment or licensing for deliverables and pre-existing materials", "severity": "medium"},
+        {"id": "REG-009", "name": "Compliance Reporting", "description": "Periodic compliance reporting and certification obligations for regulated activities", "severity": "low"},
+        {"id": "REG-010", "name": "Audit Rights", "description": "Contractual right to audit vendor operations, security controls, and subcontractors", "severity": "low"},
+        {"id": "REG-011", "name": "Indemnification", "description": "Mutual indemnification for third-party claims arising from breach of obligations", "severity": "medium"},
     ]
-    gaps = analyze_compliance_gaps(doc, rules)
+    analysis = analyze_compliance_gaps(doc, rules)
 
-    # Persist gaps to Firestore
+    # Persist analysis to Firestore
     try:
-        update_document("documents", doc_id, {"compliance_gaps": gaps})
+        update_document("documents", doc_id, {"compliance_gaps": analysis.get("compliance_gaps", []), "gap_analysis": analysis})
     except Exception:
         pass
 
@@ -554,7 +560,7 @@ async def analyze_document(doc_id: str, user: dict = Depends(get_current_user)):
         "doc_id": doc_id,
         "extracted_metadata": metadata,
         "score": score_result,
-        "compliance_gaps": gaps,
+        "analysis": analysis,
         "analysis_status": "complete",
         "analyzed_at": datetime.now(timezone.utc).isoformat(),
     }

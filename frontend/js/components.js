@@ -51,10 +51,14 @@ function renderSidebar(activePage) {
         html += `</div>`;
     }
 
+    const avatarHtml = user.avatar_url
+        ? `<div class="sidebar-avatar-wrap"><img src="${user.avatar_url}" alt="${user.name || 'User'}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;"><span class="sidebar-online-dot"></span></div>`
+        : `<div class="sidebar-avatar-wrap"><div class="sidebar-avatar">${initials}</div><span class="sidebar-online-dot"></span></div>`;
+
     html += `</nav>
         <div class="sidebar-footer">
             <div class="sidebar-user">
-                <div class="sidebar-avatar">${initials}</div>
+                ${avatarHtml}
                 <div class="sidebar-user-info">
                     <div class="sidebar-user-name">${user.name || 'Admin'}</div>
                     <div class="sidebar-user-role">${user.role || 'admin'}</div>

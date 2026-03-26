@@ -165,6 +165,12 @@ def _register_routes(app: FastAPI):
     except ImportError:
         pass
 
+    try:
+        from backend.routes.activity import router as activity_router
+        app.include_router(activity_router, prefix="/api/activity", tags=["Activity"])
+    except ImportError:
+        pass
+
 
 app = create_app()
 

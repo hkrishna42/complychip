@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signing in... - ComplyChip</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f1117;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .callback-msg {
+            text-align: center;
+            font-size: 15px;
+            color: #94a3b8;
+        }
+        .callback-msg .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #2d2e3a;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="callback-msg">
+        <div class="spinner"></div>
+        <div>Completing sign-in...</div>
+    </div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const error = params.get('error');
+
+        if (error) {
+            document.querySelector('.callback-msg').innerHTML = '<div style="color:#ef4444;">Sign-in was cancelled or failed.</div><div style="margin-top:8px;"><a href="/" style="color:#4f46e5;">Return to login</a></div>';
+        } else if (code) {
+            if (window.opener) {
+                // Popup flow: send code back to opener
+                window.opener.postMessage({ type: 'google-auth-code', code: code }, window.location.origin);
+                window.close();
+            } else {
+                // Fallback: redirect back to login with code param
+                window.location.href = '/?code=' + encodeURIComponent(code);
+            }
+        } else {
+            document.querySelector('.callback-msg').innerHTML = '<div style="color:#ef4444;">No authorization code received.</div><div style="margin-top:8px;"><a href="/" style="color:#4f46e5;">Return to login</a></div>';
+        }
+    </script>
+</body>
+</html>

@@ -458,6 +458,35 @@ textarea {
   display: none;
 }
 
+.sidebar-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sidebar-online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border: 2px solid var(--bg-sidebar);
+  border-radius: 50%;
+}
+
+.sidebar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #ffffff;
+}
+
 /* ==========================================================================
    7. MAIN CONTENT AREA
    ========================================================================== */

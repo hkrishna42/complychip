@@ -83,6 +83,72 @@
         .session-device { font-size: var(--text-sm); font-weight: 500; }
         .session-meta { font-size: var(--text-xs); color: var(--text-muted); }
         .session-current { padding: 2px 8px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 600; background: var(--success-bg); color: var(--success); }
+        .session-revoke { color: var(--danger); border-color: var(--danger); }
+        .session-revoke:hover { background: var(--danger-bg); }
+
+        /* Account linking */
+        .account-link-row {
+            display: flex; align-items: center; justify-content: space-between; padding: 14px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .account-link-row:last-child { border-bottom: none; }
+        .account-link-left { display: flex; align-items: center; gap: 12px; }
+        .account-link-icon {
+            width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--bg-input);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .account-link-name { font-size: var(--text-sm); font-weight: 500; }
+        .account-link-email { font-size: var(--text-xs); color: var(--text-muted); }
+        .btn-link-google {
+            padding: 6px 16px; font-size: var(--text-sm); font-weight: 500; border-radius: var(--radius-md);
+            border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);
+            cursor: pointer; transition: all var(--transition-fast);
+        }
+        .btn-link-google:hover { background: var(--bg-input); }
+        .btn-unlink { color: var(--danger); border-color: var(--danger); }
+        .btn-unlink:hover { background: var(--danger-bg); }
+
+        /* Activity feed */
+        .activity-item {
+            display: flex; align-items: flex-start; gap: 12px; padding: 10px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .activity-item:last-child { border-bottom: none; }
+        .activity-icon {
+            width: 32px; height: 32px; border-radius: 50%; background: var(--accent-light);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .activity-icon svg { width: 16px; height: 16px; color: var(--accent); }
+        .activity-icon.activity-login { background: var(--success-bg); }
+        .activity-icon.activity-login svg { color: var(--success); }
+        .activity-icon.activity-upload { background: var(--info-bg); }
+        .activity-icon.activity-upload svg { color: var(--info); }
+        .activity-icon.activity-logout { background: var(--danger-bg); }
+        .activity-icon.activity-logout svg { color: var(--danger); }
+        .activity-desc { font-size: var(--text-sm); color: var(--text-primary); }
+        .activity-time { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+        .activity-info { flex: 1; }
+
+        /* Profile avatar in settings */
+        .profile-avatar-img {
+            width: 72px; height: 72px; border-radius: 16px; object-fit: cover; flex-shrink: 0;
+        }
+
+        /* Revoke all button */
+        .btn-revoke-all {
+            margin-top: 12px; padding: 8px 20px; font-size: var(--text-sm); font-weight: 500;
+            border-radius: var(--radius-md); border: 1px solid var(--danger); background: transparent;
+            color: var(--danger); cursor: pointer; transition: all var(--transition-fast);
+        }
+        .btn-revoke-all:hover { background: var(--danger-bg); }
+
+        /* Google login method badge */
+        .login-method-badge {
+            display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+            border-radius: var(--radius-pill); font-size: 10px; font-weight: 500;
+            background: var(--bg-input); color: var(--text-muted);
+        }
+        .login-method-badge svg { width: 12px; height: 12px; }
 
         @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } }
     </style>
@@ -107,7 +173,7 @@
                     <div class="tab-panel active" id="tab-profile">
                         <div class="settings-section">
                             <div class="profile-header">
-                                <div class="profile-avatar" id="profileAvatar">AU</div>
+                                <div class="profile-avatar" id="profileAvatar" data-type="initials">AU</div>
                                 <div class="profile-info">
                                     <h3 id="profileName">Admin User</h3>
                                     <p id="profileEmail">admin@complychip.ai</p>
@@ -296,39 +362,49 @@
                             </div>
                         </div>
 
+                        <!-- Connected Accounts -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">Connected Accounts</div>
+                            <div class="settings-section-desc">Link third-party accounts for easier sign-in.</div>
+                            <div id="accountLinks">
+                                <div class="account-link-row">
+                                    <div class="account-link-left">
+                                        <div class="account-link-icon">
+                                            <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <div class="account-link-name">Google</div>
+                                            <div class="account-link-email" id="googleLinkEmail">Not connected</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn-link-google" id="btnLinkGoogle" onclick="linkGoogle()">Connect</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Active Sessions (dynamic) -->
                         <div class="settings-section">
                             <div class="settings-section-header">
                                 <div class="settings-section-title">Active Sessions</div>
                             </div>
-                            <div class="session-item">
-                                <div class="session-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                                </div>
-                                <div class="session-info">
-                                    <div class="session-device">Chrome on macOS</div>
-                                    <div class="session-meta">San Francisco, CA &middot; Active now</div>
-                                </div>
-                                <span class="session-current">Current</span>
+                            <div class="settings-section-desc">Manage your login sessions across devices.</div>
+                            <div id="sessionsList">
+                                <div style="text-align:center;padding:20px;color:var(--text-muted);">Loading sessions...</div>
                             </div>
-                            <div class="session-item">
-                                <div class="session-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                                </div>
-                                <div class="session-info">
-                                    <div class="session-device">Safari on iPhone</div>
-                                    <div class="session-meta">San Francisco, CA &middot; 3 hours ago</div>
-                                </div>
-                                <button class="btn btn-ghost btn-sm" onclick="revokeSession()">Revoke</button>
-                            </div>
-                            <div class="session-item">
-                                <div class="session-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                                </div>
-                                <div class="session-info">
-                                    <div class="session-device">Firefox on Windows</div>
-                                    <div class="session-meta">New York, NY &middot; 2 days ago</div>
-                                </div>
-                                <button class="btn btn-ghost btn-sm" onclick="revokeSession()">Revoke</button>
+                            <button class="btn-revoke-all" onclick="revokeAllSessions()">Log out all other sessions</button>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">Recent Activity</div>
+                            <div class="settings-section-desc">Your latest actions across the platform.</div>
+                            <div id="activityFeed">
+                                <div style="text-align:center;padding:20px;color:var(--text-muted);">Loading activity...</div>
                             </div>
                         </div>
                     </div>
@@ -352,22 +428,40 @@
         async function loadUserProfile() {
             let user = getUser() || { name: 'Admin User', email: 'admin@complychip.ai', role: 'admin' };
             try {
-                const res = await apiGet('/api/auth/me');
+                const res = await apiGet('/auth/me');
                 if (res && res.ok) {
                     const me = await res.json();
                     user = { ...user, ...me };
                     setUser(user);
                 }
             } catch { /* use localStorage fallback */ }
+
             const parts = (user.name || 'Admin User').split(' ');
             const initials = parts.map(w => w[0]).join('').toUpperCase().slice(0, 2);
-            document.getElementById('profileAvatar').textContent = initials;
+
+            // Profile avatar: show Google photo if available
+            const avatarEl = document.getElementById('profileAvatar');
+            if (user.avatar_url) {
+                avatarEl.innerHTML = `<img src="${user.avatar_url}" alt="${user.name}" class="profile-avatar-img">`;
+                avatarEl.style.background = 'none';
+                avatarEl.style.padding = '0';
+                avatarEl.style.overflow = 'hidden';
+            } else {
+                avatarEl.textContent = initials;
+            }
+
             document.getElementById('profileName').textContent = user.name || 'Admin User';
             document.getElementById('profileEmail').textContent = user.email || 'admin@complychip.ai';
             document.getElementById('profileRole').textContent = user.role || 'Admin';
             document.getElementById('firstName').value = parts[0] || 'Admin';
             document.getElementById('lastName').value = parts.slice(1).join(' ') || 'User';
             document.getElementById('email').value = user.email || 'admin@complychip.ai';
+
+            // Load connected accounts status
+            loadAccountLinks(user);
+            // Load sessions and activity
+            loadSessions();
+            loadActivity();
         }
 
         function switchTab(tabId) {
@@ -393,12 +487,20 @@
             setUser(user);
             document.getElementById('profileName').textContent = name;
             const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-            document.getElementById('profileAvatar').textContent = initials;
+            const avatarEl = document.getElementById('profileAvatar');
+            if (!user.avatar_url) avatarEl.textContent = initials;
+            trackActivity('profile_update', 'user', '', { field: 'name' });
             showToast('Profile updated successfully', 'success');
         }
 
-        function saveOrg() { showToast('Organization settings saved', 'success'); }
-        function savePreferences() { showToast('Preferences saved', 'success'); }
+        function saveOrg() {
+            trackActivity('settings_update', 'organization');
+            showToast('Organization settings saved', 'success');
+        }
+        function savePreferences() {
+            trackActivity('settings_update', 'preferences');
+            showToast('Preferences saved', 'success');
+        }
 
         function changePassword() {
             const current = document.getElementById('currentPassword').value;
@@ -407,13 +509,233 @@
             if (!current || !newPass || !confirm) { showToast('Please fill in all password fields', 'error'); return; }
             if (newPass.length < 8) { showToast('Password must be at least 8 characters', 'error'); return; }
             if (newPass !== confirm) { showToast('New passwords do not match', 'error'); return; }
+            trackActivity('password_change', 'user');
             showToast('Password updated successfully', 'success');
             document.getElementById('currentPassword').value = '';
             document.getElementById('newPassword').value = '';
             document.getElementById('confirmPassword').value = '';
         }
 
-        function revokeSession() { showToast('Session revoked', 'info'); }
+        // ===== Active Sessions =====
+        async function loadSessions() {
+            const container = document.getElementById('sessionsList');
+            try {
+                const res = await apiGet('/auth/sessions');
+                if (!res || !res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                const sessions = data.sessions || [];
+                if (sessions.length === 0) {
+                    container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:var(--text-sm);">No active sessions found.</div>';
+                    return;
+                }
+                container.innerHTML = sessions.map(s => {
+                    const isCurrent = s.is_current;
+                    const deviceIcon = (s.device_info || '').toLowerCase().includes('mobile') || (s.device_info || '').toLowerCase().includes('iphone')
+                        ? '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>'
+                        : '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>';
+                    const loginBadge = s.login_method === 'google'
+                        ? '<span class="login-method-badge"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Google</span>'
+                        : '<span class="login-method-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Email</span>';
+                    const timeStr = s.last_active ? timeAgo(new Date(s.last_active)) : 'Unknown';
+                    const actionHtml = isCurrent
+                        ? '<span class="session-current">Current</span>'
+                        : `<button class="btn btn-ghost btn-sm session-revoke" onclick="revokeSession('${s.id}')">Revoke</button>`;
+                    return `<div class="session-item">
+                        <div class="session-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${deviceIcon}</svg></div>
+                        <div class="session-info">
+                            <div class="session-device">${escHtml(s.device_info || 'Unknown device')} ${loginBadge}</div>
+                            <div class="session-meta">${escHtml(s.ip_address || '')}${s.ip_address ? ' &middot; ' : ''}${isCurrent ? 'Active now' : timeStr}</div>
+                        </div>
+                        ${actionHtml}
+                    </div>`;
+                }).join('');
+            } catch {
+                container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:var(--text-sm);">Could not load sessions.</div>';
+            }
+        }
+
+        async function revokeSession(sessionId) {
+            try {
+                const res = await apiDelete('/auth/sessions/' + sessionId);
+                if (res && res.ok) {
+                    showToast('Session revoked', 'success');
+                    trackActivity('session_revoke', 'session', sessionId);
+                    loadSessions();
+                } else {
+                    showToast('Failed to revoke session', 'error');
+                }
+            } catch {
+                showToast('Error revoking session', 'error');
+            }
+        }
+
+        async function revokeAllSessions() {
+            const ok = await confirmAction('This will log you out of all other devices. Continue?');
+            if (!ok) return;
+            try {
+                const res = await apiDelete('/auth/sessions');
+                if (res && res.ok) {
+                    showToast('All other sessions revoked', 'success');
+                    trackActivity('sessions_revoke_all', 'session');
+                    loadSessions();
+                } else {
+                    showToast('Failed to revoke sessions', 'error');
+                }
+            } catch {
+                showToast('Error revoking sessions', 'error');
+            }
+        }
+
+        // ===== Account Linking =====
+        function loadAccountLinks(user) {
+            const emailEl = document.getElementById('googleLinkEmail');
+            const btnEl = document.getElementById('btnLinkGoogle');
+            if (user.has_google) {
+                emailEl.textContent = user.google_email || user.email || 'Connected';
+                btnEl.textContent = 'Disconnect';
+                btnEl.className = 'btn-link-google btn-unlink';
+                btnEl.onclick = unlinkGoogle;
+            } else {
+                emailEl.textContent = 'Not connected';
+                btnEl.textContent = 'Connect';
+                btnEl.className = 'btn-link-google';
+                btnEl.onclick = linkGoogle;
+            }
+        }
+
+        async function linkGoogle() {
+            try {
+                const redirectUri = window.location.origin + '/auth-callback.html';
+                const res = await fetch('/auth/google/url?redirect_uri=' + encodeURIComponent(redirectUri));
+                const { auth_url } = await res.json();
+                if (!auth_url) { showToast('Could not get Google auth URL', 'error'); return; }
+
+                const w = 500, h = 600;
+                const left = (screen.width - w) / 2, top = (screen.height - h) / 2;
+                const popup = window.open(auth_url, 'google-link', `width=${w},height=${h},left=${left},top=${top}`);
+
+                const handler = async (e) => {
+                    if (e.origin !== window.location.origin || e.data?.type !== 'google-auth-code') return;
+                    window.removeEventListener('message', handler);
+                    try {
+                        const linkRes = await apiFetch('/auth/google/link', {
+                            method: 'POST',
+                            body: JSON.stringify({ code: e.data.code, redirect_uri: redirectUri })
+                        });
+                        if (linkRes && linkRes.ok) {
+                            showToast('Google account linked successfully', 'success');
+                            trackActivity('google_link', 'account');
+                            loadUserProfile();
+                        } else {
+                            const err = await linkRes.json().catch(() => ({}));
+                            showToast(err.detail || 'Failed to link Google account', 'error');
+                        }
+                    } catch {
+                        showToast('Error linking Google account', 'error');
+                    }
+                };
+                window.addEventListener('message', handler);
+            } catch {
+                showToast('Could not start Google linking', 'error');
+            }
+        }
+
+        async function unlinkGoogle() {
+            const ok = await confirmAction('Disconnect your Google account? You can still sign in with email/password.');
+            if (!ok) return;
+            try {
+                const res = await apiFetch('/auth/google/unlink', { method: 'POST' });
+                if (res && res.ok) {
+                    showToast('Google account disconnected', 'success');
+                    trackActivity('google_unlink', 'account');
+                    loadUserProfile();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    showToast(err.detail || 'Failed to disconnect Google', 'error');
+                }
+            } catch {
+                showToast('Error disconnecting Google', 'error');
+            }
+        }
+
+        // ===== Recent Activity =====
+        async function loadActivity() {
+            const container = document.getElementById('activityFeed');
+            try {
+                const res = await apiGet('/api/activity?limit=20');
+                if (!res || !res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                const activities = data.activities || [];
+                if (activities.length === 0) {
+                    container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:var(--text-sm);">No recent activity.</div>';
+                    return;
+                }
+                container.innerHTML = activities.map(a => {
+                    const { iconSvg, iconClass } = getActivityIcon(a.action);
+                    const desc = getActivityDescription(a);
+                    const time = a.created_at ? timeAgo(new Date(a.created_at)) : '';
+                    return `<div class="activity-item">
+                        <div class="activity-icon ${iconClass}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${iconSvg}</svg></div>
+                        <div class="activity-info">
+                            <div class="activity-desc">${desc}</div>
+                            <div class="activity-time">${time}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch {
+                container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:var(--text-sm);">Could not load activity.</div>';
+            }
+        }
+
+        function getActivityIcon(action) {
+            const icons = {
+                login: { svg: '<path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>', cls: 'activity-login' },
+                logout: { svg: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>', cls: 'activity-logout' },
+                page_view: { svg: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>', cls: '' },
+                document_upload: { svg: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>', cls: 'activity-upload' },
+                profile_update: { svg: '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>', cls: '' },
+                settings_update: { svg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06"/>', cls: '' },
+            };
+            const found = icons[action] || icons['page_view'];
+            return { iconSvg: found.svg, iconClass: found.cls };
+        }
+
+        function getActivityDescription(a) {
+            const descs = {
+                login: 'Signed in',
+                logout: 'Signed out',
+                page_view: `Viewed ${escHtml(a.resource_id || 'page')}`,
+                document_upload: `Uploaded document${a.resource_id ? ': ' + escHtml(a.resource_id) : ''}`,
+                document_view: `Viewed document${a.resource_id ? ': ' + escHtml(a.resource_id) : ''}`,
+                profile_update: 'Updated profile',
+                settings_update: `Updated ${escHtml(a.resource_type || 'settings')}`,
+                password_change: 'Changed password',
+                google_link: 'Linked Google account',
+                google_unlink: 'Disconnected Google account',
+                session_revoke: 'Revoked a session',
+                sessions_revoke_all: 'Revoked all other sessions',
+            };
+            return descs[a.action] || escHtml(a.action || 'Activity');
+        }
+
+        // ===== Helpers =====
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return 'Just now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            if (days < 30) return `${days}d ago`;
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function escHtml(str) {
+            const el = document.createElement('span');
+            el.textContent = str;
+            return el.innerHTML;
+        }
 
         // Apply saved theme on load
         const savedTheme = localStorage.getItem('complychip_theme');

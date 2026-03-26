@@ -124,6 +124,57 @@
             color: #4f46e5;
             text-decoration: none;
         }
+        .divider-text {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 24px 0;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .divider-text::before,
+        .divider-text::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #2d2e3a;
+        }
+        .btn-google-signin {
+            width: 100%;
+            padding: 12px 24px;
+            background: #ffffff;
+            color: #3c4043;
+            border: 1px solid #2d2e3a;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: box-shadow 0.15s ease, background 0.15s ease;
+        }
+        .btn-google-signin:hover {
+            background: #f8f9fa;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+        .btn-google-signin:active {
+            transform: scale(0.98);
+        }
+        .btn-google-signin:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .btn-google-signin svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
@@ -155,7 +206,19 @@
                 <button class="btn-primary" type="submit" id="loginBtn">Sign in</button>
             </form>
 
-            <div class="divider"></div>
+            <div class="divider-text"><span>OR</span></div>
+
+            <button class="btn-google-signin" id="googleBtn" onclick="googleSignIn()">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Sign in with Google
+            </button>
+
+            <div class="divider" style="margin-top:24px;"></div>
             <div class="demo-note">
                 Demo credentials: admin@complychip.ai / admin123
             </div>
@@ -203,9 +266,106 @@
             }
         }
 
-        // Redirect if already logged in
+        // Google Sign-In flow
+        async function googleSignIn() {
+            const btn = document.getElementById('googleBtn');
+            const errorEl = document.getElementById('errorMsg');
+            btn.disabled = true;
+            errorEl.style.display = 'none';
+
+            try {
+                const redirectUri = window.location.origin + '/auth-callback.html';
+                const res = await fetch('/auth/google/url?redirect_uri=' + encodeURIComponent(redirectUri));
+                const { auth_url } = await res.json();
+                if (!auth_url) throw new Error('No auth URL returned');
+
+                // Open popup
+                const w = 500, h = 600;
+                const left = (screen.width - w) / 2;
+                const top = (screen.height - h) / 2;
+                const popup = window.open(auth_url, 'google-signin', `width=${w},height=${h},left=${left},top=${top}`);
+
+                // Listen for callback message from popup
+                const handler = async (e) => {
+                    if (e.origin !== window.location.origin) return;
+                    if (e.data?.type !== 'google-auth-code') return;
+                    window.removeEventListener('message', handler);
+
+                    const code = e.data.code;
+                    try {
+                        const loginRes = await fetch('/auth/google/callback', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code, redirect_uri: redirectUri })
+                        });
+                        const data = await loginRes.json();
+                        if (data.access_token) {
+                            localStorage.setItem('complychip_access_token', data.access_token);
+                            if (data.refresh_token) localStorage.setItem('complychip_refresh_token', data.refresh_token);
+                            if (data.user) localStorage.setItem('complychip_user', JSON.stringify(data.user));
+                            window.location.href = '/dashboard.html';
+                        } else {
+                            errorEl.textContent = data.detail || data.message || 'Google sign-in failed';
+                            errorEl.style.display = 'block';
+                        }
+                    } catch (err) {
+                        errorEl.textContent = 'Connection error during Google sign-in.';
+                        errorEl.style.display = 'block';
+                    }
+                    btn.disabled = false;
+                };
+                window.addEventListener('message', handler);
+
+                // Poll to detect if popup was closed without completing
+                const pollTimer = setInterval(() => {
+                    if (popup && popup.closed) {
+                        clearInterval(pollTimer);
+                        btn.disabled = false;
+                    }
+                }, 500);
+            } catch (err) {
+                errorEl.textContent = 'Could not start Google sign-in. Please try again.';
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+            }
+        }
+
+        // Handle redirect fallback (code in URL params)
+        async function handleCodeFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            if (!code) return;
+            // Clean URL
+            window.history.replaceState({}, document.title, '/');
+            const errorEl = document.getElementById('errorMsg');
+            try {
+                const redirectUri = window.location.origin + '/auth-callback.html';
+                const res = await fetch('/auth/google/callback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, redirect_uri: redirectUri })
+                });
+                const data = await res.json();
+                if (data.access_token) {
+                    localStorage.setItem('complychip_access_token', data.access_token);
+                    if (data.refresh_token) localStorage.setItem('complychip_refresh_token', data.refresh_token);
+                    if (data.user) localStorage.setItem('complychip_user', JSON.stringify(data.user));
+                    window.location.href = '/dashboard.html';
+                } else {
+                    errorEl.textContent = data.detail || 'Google sign-in failed';
+                    errorEl.style.display = 'block';
+                }
+            } catch {
+                errorEl.textContent = 'Connection error. Please try again.';
+                errorEl.style.display = 'block';
+            }
+        }
+
+        // Redirect if already logged in, or handle Google callback code
         if (localStorage.getItem('complychip_access_token')) {
             window.location.href = '/dashboard.html';
+        } else {
+            handleCodeFromUrl();
         }
     </script>
 </body>
