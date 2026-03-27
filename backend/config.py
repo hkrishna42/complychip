@@ -32,6 +32,8 @@ N8N_SEND_REMINDER_WEBHOOK = f"{N8N_BASE_URL}/webhook/send-reminder"
 N8N_VENDOR_ENRICHMENT_WEBHOOK = f"{N8N_BASE_URL}/webhook/vendor-enrichment"
 N8N_RISK_ANALYSIS_WEBHOOK = f"{N8N_BASE_URL}/webhook/risk-analysis"
 N8N_CLAUSE_ANOMALY_WEBHOOK = f"{N8N_BASE_URL}/webhook/clause-anomaly"
+N8N_COPILOT_AGENT_WEBHOOK = f"{N8N_BASE_URL}/webhook/copilot-agent"
+N8N_REPLACE_DOCUMENT_WEBHOOK = f"{N8N_BASE_URL}/webhook/replace-document"
 
 # Firebase / Firestore
 FIREBASE_CRED_PATH = os.getenv(

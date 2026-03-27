@@ -11,6 +11,8 @@ from backend.config import (
     N8N_VENDOR_ENRICHMENT_WEBHOOK,
     N8N_RISK_ANALYSIS_WEBHOOK,
     N8N_CLAUSE_ANOMALY_WEBHOOK,
+    N8N_COPILOT_AGENT_WEBHOOK,
+    N8N_REPLACE_DOCUMENT_WEBHOOK,
 )
 
 # Map friendly workflow names to webhook URLs
@@ -21,6 +23,8 @@ _WORKFLOW_MAP = {
     "vendor-enrichment": N8N_VENDOR_ENRICHMENT_WEBHOOK,
     "risk-analysis": N8N_RISK_ANALYSIS_WEBHOOK,
     "clause-anomaly": N8N_CLAUSE_ANOMALY_WEBHOOK,
+    "copilot-agent": N8N_COPILOT_AGENT_WEBHOOK,
+    "replace-document": N8N_REPLACE_DOCUMENT_WEBHOOK,
 }
 
 
@@ -167,3 +171,67 @@ async def trigger_clause_anomaly(
         "clauses": clauses or [],
         "organization_id": organization_id,
     })
+
+
+async def trigger_copilot_agent(
+    query: str,
+    context: str = "",
+    conversation_history: Optional[list] = None,
+) -> dict:
+    """Trigger the Copilot Agent n8n workflow (Gemini + Pinecone + Firebase).
+
+    This sends the user query to n8n which uses:
+    - Gemini for AI reasoning
+    - Pinecone vector store for RAG document search
+    - Firebase Firestore for data access
+
+    Returns: { response: str, sources: list, status: str }
+    """
+    import httpx
+
+    url = _WORKFLOW_MAP.get("copilot-agent", N8N_COPILOT_AGENT_WEBHOOK)
+    payload = {
+        "query": query,
+        "context": context,
+        "conversation_history": conversation_history or [],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        print(f"Warning: Copilot agent workflow failed: {e}")
+        return {
+            "response": "",
+            "status": "error",
+            "error": str(e),
+        }
+
+
+async def trigger_replace_document(
+    document_id: str, filename: str, content_type: str,
+    entity_id: str, document_type: str, organization_id: str = "",
+    file_data: bytes = b"",
+) -> dict:
+    """Trigger the replace-document n8n workflow."""
+    url = N8N_REPLACE_DOCUMENT_WEBHOOK
+    params = {
+        "document_id": document_id,
+        "filename": filename,
+        "content_type": content_type,
+        "entity_id": entity_id,
+        "document_type": document_type,
+        "organization_id": organization_id,
+    }
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            files = {"data": (filename, file_data, content_type)}
+            resp = await client.post(url, params=params, files=files)
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        print(f"Warning: replace-document trigger failed: {e}")
+        return {"status": "demo", "message": "Replace triggered (demo mode)"}

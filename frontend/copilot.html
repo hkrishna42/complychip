@@ -4,68 +4,392 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Copilot - ComplyChip</title>
-    <link rel="stylesheet" href="/css/design-system.css?v=4">
-    <link rel="stylesheet" href="/css/components.css?v=4">
-    <link rel="stylesheet" href="/css/dark-mode.css?v=4">
+    <link rel="stylesheet" href="/css/design-system.css?v=5">
+    <link rel="stylesheet" href="/css/components.css?v=5">
+    <link rel="stylesheet" href="/css/dark-mode.css?v=5">
     <style>
-        .main-content { display: flex; flex-direction: column; }
-        .chat-layout { display: flex; flex: 1; min-height: 0; height: calc(100vh - var(--topbar-height)); }
+        .main-content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .copilot-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
-        /* Chat Area */
-        .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .chat-messages { flex: 1; overflow-y: auto; padding: 24px; }
-        .chat-messages-inner { max-width: 720px; margin: 0 auto; }
-
-        /* Welcome */
-        .chat-welcome { text-align: center; padding: 60px 24px 40px; }
-        .chat-welcome-icon {
-            width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #4f46e5, #7c3aed);
-            display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
+        /* ===== Conversations Panel ===== */
+        .conv-panel {
+            width: 280px; background: var(--bg-card); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; flex-shrink: 0;
+            transition: width var(--transition-base), opacity var(--transition-base);
+            overflow: hidden;
         }
-        .chat-welcome-icon svg { width: 32px; height: 32px; color: #fff; }
-        .chat-welcome h2 { font-size: var(--text-xl); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.02em; }
-        .chat-welcome p { font-size: var(--text-sm); color: var(--text-secondary); max-width: 480px; margin: 0 auto; line-height: 1.6; }
+        .conv-panel.collapsed { width: 0; border-right: none; padding: 0; overflow: hidden; min-width: 0; }
 
-        /* Message Bubbles */
-        .message { display: flex; gap: 12px; margin-bottom: 20px; animation: fadeIn 0.3s ease; }
+        .conv-panel-header {
+            padding: var(--space-4); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        .conv-panel-header h3 { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+        .conv-panel-actions { display: flex; gap: var(--space-1); }
+
+        .btn-icon-sm {
+            width: 28px; height: 28px; border-radius: var(--radius-sm); border: none;
+            background: transparent; color: var(--text-muted); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .btn-icon-sm:hover { background: var(--bg-input); color: var(--text-primary); }
+
+        .conv-search {
+            padding: var(--space-2) var(--space-4); flex-shrink: 0;
+        }
+        .conv-search input {
+            width: 100%; padding: 7px 10px 7px 32px; border: 1px solid var(--border);
+            border-radius: var(--radius-md); font-size: var(--text-xs); color: var(--text-primary);
+            background: var(--bg-input) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") 10px center no-repeat;
+            outline: none; transition: border-color var(--transition-fast);
+        }
+        .conv-search input:focus { border-color: var(--accent); background-color: var(--bg-input-focus); }
+        .conv-search input::placeholder { color: var(--text-muted); }
+
+        .conv-list { flex: 1; overflow-y: auto; padding: var(--space-2); }
+
+        .conv-item {
+            padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer;
+            transition: all var(--transition-fast); position: relative; margin-bottom: 2px;
+        }
+        .conv-item:hover { background: var(--bg-input); }
+        .conv-item.active { background: var(--accent-light); border: 1px solid var(--accent-border); }
+        .conv-item:not(.active) { border: 1px solid transparent; }
+
+        .conv-item-title {
+            font-size: var(--text-sm); font-weight: 500; color: var(--text-primary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;
+        }
+        .conv-item.active .conv-item-title { color: var(--accent); }
+
+        .conv-item-preview {
+            font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; line-height: 1.4;
+        }
+        .conv-item-meta {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-top: 4px; font-size: 10px; color: var(--text-muted);
+        }
+        .conv-item-badge {
+            background: var(--bg-input); padding: 1px 6px; border-radius: var(--radius-pill);
+            font-size: 10px; font-weight: 500; color: var(--text-muted);
+        }
+
+        .conv-item-actions {
+            position: absolute; top: 8px; right: 8px; display: none; gap: 2px;
+        }
+        .conv-item:hover .conv-item-actions { display: flex; }
+
+        .conv-item-actions button {
+            width: 22px; height: 22px; border-radius: 4px; border: none;
+            background: var(--bg-card); color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 11px;
+        }
+        .conv-item-actions button:hover { color: var(--text-primary); background: var(--border); }
+
+        .conv-new-btn {
+            margin: var(--space-2) var(--space-4) var(--space-4); padding: 8px 12px;
+            border-radius: var(--radius-md); border: 1px dashed var(--border);
+            background: transparent; color: var(--text-secondary); font-size: var(--text-xs);
+            font-weight: 500; cursor: pointer; display: flex; align-items: center;
+            justify-content: center; gap: var(--space-2); transition: all var(--transition-fast);
+            font-family: var(--font-sans);
+        }
+        .conv-new-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+        .conv-new-btn svg { width: 14px; height: 14px; }
+
+        /* ===== Chat Area ===== */
+        .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-body); }
+
+        .chat-header {
+            padding: 10px var(--space-6); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: var(--space-3); background: var(--bg-card);
+            flex-shrink: 0; min-height: 44px;
+        }
+        .chat-header-toggle {
+            width: 28px; height: 28px; border-radius: var(--radius-sm); border: none;
+            background: transparent; color: var(--text-muted); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .chat-header-toggle:hover { background: var(--bg-input); color: var(--text-primary); }
+        .chat-header-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
+
+        .chat-messages { flex: 1; overflow-y: auto; overflow-x: hidden; padding: var(--space-6); }
+        .chat-messages-inner { max-width: 760px; margin: 0 auto; }
+
+        /* ===== Welcome State ===== */
+        .chat-welcome { text-align: center; padding: 80px 24px 40px; }
+        .chat-welcome-icon {
+            width: 72px; height: 72px; border-radius: 18px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px; box-shadow: 0 8px 24px rgba(79,70,229,0.25);
+        }
+        .chat-welcome-icon svg { width: 36px; height: 36px; color: #fff; }
+        .chat-welcome h2 {
+            font-size: var(--text-2xl); font-weight: 700; margin-bottom: 8px;
+            letter-spacing: -0.02em; color: var(--text-primary);
+        }
+        .chat-welcome p {
+            font-size: var(--text-sm); color: var(--text-secondary);
+            max-width: 480px; margin: 0 auto 32px; line-height: 1.6;
+        }
+
+        .starter-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+            max-width: 560px; margin: 0 auto;
+        }
+        .starter-card {
+            padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card); cursor: pointer; text-align: left;
+            transition: all var(--transition-fast); font-family: var(--font-sans);
+        }
+        .starter-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+        .starter-card-icon { font-size: 18px; margin-bottom: 6px; }
+        .starter-card-text { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.4; }
+        .starter-card:hover .starter-card-text { color: var(--accent); }
+
+        /* ===== Messages ===== */
+        .message { display: flex; gap: 12px; margin-bottom: 24px; animation: msgFadeIn 0.3s ease; }
         .message-user { flex-direction: row-reverse; }
+
         .message-avatar {
-            width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;
+            width: 32px; height: 32px; border-radius: var(--radius-md); flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 600;
         }
         .message-ai .message-avatar { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; }
         .message-user .message-avatar { background: var(--bg-input); color: var(--text-secondary); }
-        .message-content { max-width: 80%; }
+
+        .message-body { max-width: calc(100% - 44px); min-width: 0; }
+
         .message-bubble {
-            padding: 12px 16px; border-radius: 12px; font-size: var(--text-sm); line-height: 1.6;
+            padding: 12px 16px; font-size: var(--text-sm); line-height: 1.65;
+            word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word;
         }
-        .message-ai .message-bubble { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 12px 12px 12px 4px; }
-        .message-user .message-bubble { background: var(--accent); color: #fff; border-radius: 12px 12px 4px 12px; }
+        .message-ai .message-bubble {
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-primary); border-radius: 16px 16px 16px 4px;
+        }
+        .message-user .message-bubble {
+            background: var(--accent); color: #fff; border-radius: 16px 16px 4px 16px;
+        }
+
+        .message-bubble strong { font-weight: 600; }
+        .message-bubble ul, .message-bubble ol { margin: 6px 0; padding-left: 20px; }
+        .message-bubble li { margin-bottom: 3px; }
+        .message-bubble code {
+            font-family: var(--font-mono); font-size: 12px;
+            background: var(--bg-input); padding: 2px 6px; border-radius: 4px;
+        }
+        .message-bubble p { margin-bottom: 8px; }
+        .message-bubble p:last-child { margin-bottom: 0; }
+
         .message-time { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
         .message-user .message-time { text-align: right; }
 
-        /* AI message formatting */
-        .message-bubble strong { font-weight: 600; }
-        .message-bubble ul, .message-bubble ol { margin: 8px 0; padding-left: 20px; }
-        .message-bubble li { margin-bottom: 4px; }
-        .message-bubble code { font-family: var(--font-mono); font-size: 12px; background: var(--bg-input); padding: 2px 6px; border-radius: 4px; }
-        .message-bubble pre { background: var(--bg-input); padding: 12px; border-radius: var(--radius-md); margin: 8px 0; overflow-x: auto; }
-        .message-bubble pre code { background: none; padding: 0; }
+        @keyframes msgFadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 
-        /* Sources */
-        .message-sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-        .source-card {
-            display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-input);
-            border: 1px solid var(--border); border-radius: var(--radius-md); font-size: 11px;
-            color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast);
+        /* ===== Rich Data Blocks ===== */
+        .copilot-data-block {
+            margin-top: 12px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card); overflow: hidden;
         }
-        .source-card:hover { border-color: var(--accent-border); color: var(--accent); }
-        .source-card svg { width: 14px; height: 14px; flex-shrink: 0; }
+        .copilot-data-block-header {
+            padding: 10px 14px; border-bottom: 1px solid var(--border);
+            font-size: var(--text-xs); font-weight: 600; color: var(--text-secondary);
+            background: var(--bg-input); display: flex; align-items: center; gap: 6px;
+        }
 
-        /* Typing Indicator */
+        /* Tables */
+        .copilot-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); }
+        .copilot-table th {
+            padding: 8px 12px; text-align: left; font-weight: 600;
+            color: var(--text-secondary); background: var(--bg-input);
+            border-bottom: 1px solid var(--border); white-space: nowrap;
+        }
+        .copilot-table td {
+            padding: 8px 12px; border-bottom: 1px solid var(--border-light);
+            color: var(--text-primary); vertical-align: middle;
+        }
+        .copilot-table tr:last-child td { border-bottom: none; }
+        .copilot-table tr:hover td { background: var(--accent-light); }
+        .copilot-table .td-name { font-weight: 500; }
+        .copilot-table a { color: var(--accent); font-weight: 500; }
+        .copilot-table a:hover { text-decoration: underline; }
+
+        /* Score badge inline */
+        .score-inline {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 36px; padding: 2px 8px; border-radius: var(--radius-pill);
+            font-size: 11px; font-weight: 600; color: #fff;
+        }
+        .score-high { background: var(--success); }
+        .score-mid { background: var(--warning); }
+        .score-low { background: var(--danger); }
+
+        /* Pills */
+        .pill {
+            display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill);
+            font-size: 10px; font-weight: 600; text-transform: capitalize;
+        }
+        .pill-success { background: var(--success-bg); color: var(--success); }
+        .pill-warning { background: var(--warning-bg); color: var(--warning); }
+        .pill-danger { background: var(--danger-bg); color: var(--danger); }
+        .pill-info { background: var(--info-bg); color: var(--info); }
+        .pill-neutral { background: var(--bg-input); color: var(--text-muted); }
+
+        /* Document Card */
+        .copilot-doc-card {
+            margin-top: 12px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card); overflow: hidden;
+        }
+        .doc-card-header {
+            padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .doc-card-header h4 { font-size: var(--text-sm); font-weight: 600; flex: 1; }
+        .doc-card-body { padding: 12px 16px; }
+        .doc-meta {
+            font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 8px;
+            display: flex; gap: 12px; flex-wrap: wrap;
+        }
+        .doc-meta span { display: flex; align-items: center; gap: 4px; }
+        .doc-summary { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.6; margin-bottom: 8px; }
+        .doc-risk-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+        .doc-risk-flag {
+            padding: 4px 8px; border-radius: var(--radius-sm);
+            font-size: 10px; background: var(--danger-bg); color: var(--danger);
+        }
+        .doc-clauses { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .doc-clause-tag {
+            padding: 3px 8px; border-radius: var(--radius-sm);
+            font-size: 10px; background: var(--info-bg); color: var(--info);
+        }
+
+        /* Entity Card */
+        .copilot-entity-card {
+            margin-top: 12px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card); padding: 16px; overflow: hidden;
+        }
+        .entity-header {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+        }
+        .entity-header h4 { font-size: var(--text-md); font-weight: 600; flex: 1; }
+        .entity-score-badge {
+            width: 40px; height: 40px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; font-size: 14px;
+            font-weight: 700; color: #fff;
+        }
+        .entity-docs { font-size: var(--text-xs); color: var(--text-muted); }
+
+        /* Score Chart */
+        .score-chart { margin-top: 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); padding: 20px; }
+        .score-chart-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .score-big { font-size: 48px; font-weight: 700; line-height: 1; }
+        .score-grade { font-size: var(--text-lg); font-weight: 600; color: var(--text-secondary); }
+        .score-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .score-bar-label { width: 120px; font-size: var(--text-xs); color: var(--text-secondary); flex-shrink: 0; }
+        .score-bar-track { flex: 1; height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+        .score-bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+        .score-bar-value { width: 32px; font-size: var(--text-xs); font-weight: 600; text-align: right; }
+
+        /* Analytics Summary */
+        .analytics-grid {
+            margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+        }
+        .analytics-stat {
+            padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card); text-align: center;
+        }
+        .analytics-stat-value { font-size: var(--text-xl); font-weight: 700; color: var(--text-primary); }
+        .analytics-stat-label { font-size: 10px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; font-weight: 500; }
+
+        /* Gap List */
+        .gap-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .gap-card {
+            padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+        .gap-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .gap-card-header .gap-type { font-size: var(--text-xs); font-weight: 600; }
+        .gap-card-desc { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5; }
+        .gap-card-rec { font-size: var(--text-xs); color: var(--accent); margin-top: 6px; font-style: italic; }
+
+        /* Expiry List */
+        .expiry-days { font-weight: 600; font-size: var(--text-xs); }
+        .expiry-overdue { color: var(--danger); }
+        .expiry-soon { color: var(--warning); }
+        .expiry-ok { color: var(--success); }
+
+        /* Search Results */
+        .search-result-card {
+            margin-top: 8px; padding: 12px 14px; border-radius: var(--radius-md);
+            border: 1px solid var(--border); background: var(--bg-card);
+        }
+        .search-result-card:first-child { margin-top: 12px; }
+        .search-result-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+        .search-result-bar { height: 4px; background: var(--bg-input); border-radius: 2px; margin-bottom: 6px; overflow: hidden; }
+        .search-result-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+        .search-result-excerpt { font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5; }
+
+        /* Expiry Forecast */
+        .expiry-forecast { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .expiry-forecast-item {
+            flex: 1; min-width: 80px; padding: 12px; border-radius: var(--radius-md);
+            border: 1px solid var(--border); background: var(--bg-card); text-align: center;
+        }
+        .expiry-forecast-count { font-size: var(--text-xl); font-weight: 700; }
+        .expiry-forecast-label { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+        /* Risk Matrix */
+        .risk-matrix { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .risk-matrix-item {
+            display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+            border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card);
+        }
+        .risk-matrix-name { flex: 1; font-size: var(--text-sm); font-weight: 500; }
+        .risk-matrix-count { font-size: var(--text-xs); color: var(--text-muted); }
+
+        /* Reminder Card */
+        .reminder-card {
+            margin-top: 12px; padding: 16px; border-radius: var(--radius-md);
+            border: 1px solid var(--border); border-left: 4px solid var(--accent);
+            background: var(--bg-card);
+        }
+        .reminder-card h4 { font-size: var(--text-sm); font-weight: 600; margin-bottom: 6px; }
+        .reminder-card-meta { font-size: var(--text-xs); color: var(--text-muted); }
+
+        /* ===== Sources ===== */
+        .msg-sources {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+            align-items: center; font-size: var(--text-xs); color: var(--text-muted);
+        }
+        .msg-sources-label { font-weight: 500; margin-right: 2px; }
+        .source-tag {
+            display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+            background: var(--bg-input); border: 1px solid var(--border);
+            border-radius: var(--radius-pill); font-size: 10px; color: var(--text-secondary);
+            cursor: pointer; transition: all var(--transition-fast);
+        }
+        .source-tag:hover { border-color: var(--accent-border); color: var(--accent); }
+        .source-tag svg { width: 12px; height: 12px; }
+
+        /* ===== Suggested Actions ===== */
+        .suggested-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .action-chip {
+            padding: 6px 14px; border-radius: var(--radius-pill); border: 1px solid var(--border);
+            background: var(--bg-card); font-size: var(--text-xs); color: var(--text-secondary);
+            cursor: pointer; transition: all var(--transition-fast); font-family: var(--font-sans);
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .action-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+        /* ===== Typing Indicator ===== */
         .typing-indicator { display: flex; gap: 4px; padding: 12px 16px; }
         .typing-dot {
-            width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);
+            width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted);
             animation: typingBounce 1.4s infinite ease-in-out both;
         }
         .typing-dot:nth-child(1) { animation-delay: -0.32s; }
@@ -74,80 +398,151 @@
             0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
             40% { transform: scale(1); opacity: 1; }
         }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Suggested Questions */
-        .chat-suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 24px 0; }
-        .suggestion-chip {
-            padding: 8px 16px; border-radius: var(--radius-pill); border: 1px solid var(--border);
-            background: var(--bg-card); font-size: var(--text-xs); color: var(--text-secondary);
-            cursor: pointer; transition: all var(--transition-fast); font-family: var(--font-sans);
+        /* ===== Data block overflow fix ===== */
+        .copilot-data-block { max-width: 100%; }
+        .copilot-table td { overflow-wrap: anywhere; }
+
+        /* ===== Upload Prompt ===== */
+        .upload-prompt-card {
+            margin-top: 12px; border-radius: var(--radius-md); border: 2px dashed var(--border);
+            background: var(--bg-card); padding: 20px; text-align: center;
+            transition: border-color var(--transition-fast);
         }
-        .suggestion-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+        .upload-prompt-card:hover { border-color: var(--accent); }
+        .upload-prompt-icon { font-size: 32px; margin-bottom: 8px; }
+        .upload-prompt-text { font-size: var(--text-xs); color: var(--text-secondary); margin-bottom: 12px; }
+        .upload-prompt-meta { font-size: 10px; color: var(--text-muted); margin-bottom: 12px; }
+        .upload-file-input { display: none; }
+        .upload-prompt-btn {
+            display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px;
+            border-radius: var(--radius-md); border: 1px solid var(--accent);
+            background: var(--accent); color: #fff; font-size: var(--text-xs);
+            font-weight: 500; cursor: pointer; font-family: var(--font-sans);
+            transition: all var(--transition-fast);
+        }
+        .upload-prompt-btn:hover { background: var(--accent-hover); }
+        .upload-prompt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .upload-progress { margin-top: 10px; font-size: var(--text-xs); color: var(--accent); }
+        .upload-progress-bar {
+            height: 4px; background: var(--bg-input); border-radius: 2px; overflow: hidden; margin-top: 6px;
+        }
+        .upload-progress-fill {
+            height: 100%; background: var(--accent); border-radius: 2px;
+            animation: uploadPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes uploadPulse { 0%, 100% { width: 30%; } 50% { width: 80%; } }
 
-        /* Input Area */
+        /* ===== Risk Analysis Card ===== */
+        .risk-analysis-header {
+            padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .risk-badge {
+            padding: 4px 14px; border-radius: var(--radius-pill); font-size: 12px;
+            font-weight: 700; color: #fff; text-transform: uppercase;
+        }
+        .risk-badge-critical { background: var(--danger); }
+        .risk-badge-high { background: #f97316; }
+        .risk-badge-medium { background: var(--warning); }
+        .risk-badge-low { background: var(--success); }
+        .risk-recs { padding: 12px 16px; }
+        .risk-rec-item {
+            padding: 8px 12px; margin-bottom: 6px; border-radius: var(--radius-sm);
+            background: var(--accent-light); font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5;
+        }
+
+        /* ===== Memory Panel ===== */
+        .memory-section {
+            max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
+            background: var(--bg-body); border-bottom: 1px solid var(--border);
+        }
+        .memory-section.open { max-height: 300px; overflow-y: auto; }
+        .memory-section-inner { padding: 12px var(--space-6); }
+        .memory-section-header {
+            font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--text-muted);
+            margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+        }
+        .memory-type-group { margin-bottom: 10px; }
+        .memory-type-label { font-size: 10px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; text-transform: capitalize; }
+        .memory-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .memory-chip {
+            display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+            background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-pill);
+            font-size: 10px; color: var(--text-secondary); max-width: 280px;
+        }
+        .memory-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .memory-chip-del {
+            width: 14px; height: 14px; border-radius: 50%; border: none; background: transparent;
+            color: var(--text-muted); cursor: pointer; display: flex; align-items: center;
+            justify-content: center; font-size: 10px; flex-shrink: 0;
+        }
+        .memory-chip-del:hover { background: var(--danger-bg); color: var(--danger); }
+        .memory-empty { font-size: var(--text-xs); color: var(--text-muted); padding: 8px 0; }
+        .memory-toggle-btn {
+            width: 28px; height: 28px; border-radius: var(--radius-sm); border: none;
+            background: transparent; color: var(--text-muted); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .memory-toggle-btn:hover { background: var(--bg-input); color: var(--text-primary); }
+        .memory-toggle-btn.active { color: var(--accent); }
+
+        /* ===== Chat Input ===== */
         .chat-input-area {
-            padding: 16px 24px 24px; border-top: 1px solid var(--border); background: var(--bg-body);
+            padding: 12px var(--space-6) 20px; border-top: 1px solid var(--border);
+            background: var(--bg-card); flex-shrink: 0;
         }
         .chat-input-wrap {
-            max-width: 720px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px;
-            background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
-            padding: 8px 12px; transition: border-color var(--transition-fast);
+            max-width: 760px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px;
+            background: var(--bg-input); border: 1px solid var(--border); border-radius: 14px;
+            padding: 8px 12px; transition: all var(--transition-fast);
         }
-        .chat-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-border); }
+        .chat-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-border); background: var(--bg-input-focus); }
+
         .chat-textarea {
             flex: 1; border: none; outline: none; resize: none; font-family: var(--font-sans);
             font-size: var(--text-sm); color: var(--text-primary); background: transparent;
-            min-height: 24px; max-height: 120px; line-height: 1.5; padding: 4px 0;
+            min-height: 24px; max-height: 100px; line-height: 1.5; padding: 4px 0;
         }
         .chat-textarea::placeholder { color: var(--text-muted); }
+
         .chat-send-btn {
-            width: 36px; height: 36px; border-radius: var(--radius-md); border: none;
+            width: 34px; height: 34px; border-radius: var(--radius-md); border: none;
             background: var(--accent); color: #fff; cursor: pointer; display: flex;
             align-items: center; justify-content: center; flex-shrink: 0;
             transition: background var(--transition-fast);
         }
         .chat-send-btn:hover { background: var(--accent-hover); }
-        .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .chat-send-btn svg { width: 18px; height: 18px; }
+        .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .chat-send-btn svg { width: 16px; height: 16px; }
 
-        /* Analysis Sidebar */
-        .analysis-sidebar {
-            width: 360px; border-left: 1px solid var(--border); background: var(--bg-card);
-            display: flex; flex-direction: column; overflow-y: auto; transition: width var(--transition-base);
-        }
-        .analysis-sidebar.collapsed { width: 0; border: none; overflow: hidden; }
-        .analysis-header {
-            padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
-            align-items: center; justify-content: space-between; flex-shrink: 0;
-        }
-        .analysis-header h3 { font-size: var(--text-sm); font-weight: 600; }
-        .analysis-toggle {
-            width: 28px; height: 28px; border-radius: var(--radius-sm); border: none;
-            background: transparent; color: var(--text-muted); cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .analysis-toggle:hover { background: var(--bg-input); color: var(--text-primary); }
-        .analysis-body { flex: 1; padding: 16px 20px; }
-        .analysis-empty { text-align: center; padding: 40px 16px; color: var(--text-muted); font-size: var(--text-sm); }
-        .analysis-doc {
-            padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 12px;
-        }
-        .analysis-doc-title { font-size: var(--text-sm); font-weight: 600; margin-bottom: 4px; }
-        .analysis-doc-meta { font-size: var(--text-xs); color: var(--text-muted); }
-        .analysis-doc-excerpt { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 8px; line-height: 1.5; padding: 8px; background: var(--bg-input); border-radius: var(--radius-sm); }
-
-        .toggle-sidebar-btn {
-            position: fixed; right: 16px; top: calc(var(--topbar-height) + 16px);
-            width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-            background: var(--bg-card); color: var(--text-muted); cursor: pointer; z-index: 5;
-            display: none; align-items: center; justify-content: center;
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .conv-panel { position: fixed; left: 0; top: 0; bottom: 0; z-index: 25; width: 280px; transform: translateX(-100%); }
+            .conv-panel.mobile-open { transform: translateX(0); box-shadow: var(--shadow-xl); }
+            .conv-panel.collapsed { transform: translateX(-100%); }
+            .starter-grid { grid-template-columns: 1fr; }
+            .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+            .chat-input-area { padding: 10px var(--space-4) 16px; position: sticky; bottom: 0; }
         }
 
-        @media (max-width: 1024px) {
-            .analysis-sidebar { display: none; }
-            .toggle-sidebar-btn { display: flex; }
+        @media (max-width: 480px) {
+            .analytics-grid { grid-template-columns: 1fr; }
         }
+
+        /* Overlay for mobile panel */
+        .conv-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+            z-index: 24;
+        }
+        .conv-overlay.visible { display: block; }
+
+        /* Empty conv state */
+        .conv-empty {
+            padding: 24px 16px; text-align: center; color: var(--text-muted);
+            font-size: var(--text-xs);
+        }
+        .conv-empty svg { margin: 0 auto 8px; display: block; opacity: 0.4; }
     </style>
     <script>if(localStorage.getItem("complychip_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")</script>
 </head>
@@ -156,50 +551,107 @@
         <div id="sidebar-container"></div>
         <div class="main-content">
             <div id="topbar-container"></div>
-            <div class="chat-layout">
+            <div class="copilot-layout">
+                <!-- Conversations Panel -->
+                <div class="conv-panel" id="convPanel">
+                    <div class="conv-panel-header">
+                        <h3>Conversations</h3>
+                        <div class="conv-panel-actions">
+                            <button class="btn-icon-sm" onclick="newChat()" title="New chat">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
+                            <button class="btn-icon-sm" onclick="toggleConvPanel()" title="Close panel">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="conv-search">
+                        <input type="text" id="convSearchInput" placeholder="Search conversations..." oninput="filterConversations(this.value)">
+                    </div>
+                    <div class="conv-list" id="convList">
+                        <div class="conv-empty" id="convEmpty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                            No conversations yet. Start a new chat!
+                        </div>
+                    </div>
+                    <button class="conv-new-btn" onclick="newChat()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        New Chat
+                    </button>
+                </div>
+
+                <!-- Mobile Overlay -->
+                <div class="conv-overlay" id="convOverlay" onclick="toggleConvPanel()"></div>
+
+                <!-- Chat Area -->
                 <div class="chat-area">
+                    <div class="chat-header">
+                        <button class="chat-header-toggle" onclick="toggleConvPanel()" title="Toggle conversations">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        </button>
+                        <span class="chat-header-title" id="chatHeaderTitle">New Chat</span>
+                        <div style="margin-left:auto">
+                            <button class="memory-toggle-btn" id="memoryToggleBtn" onclick="toggleMemoryPanel()" title="Toggle memories">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="10" y1="22" x2="14" y2="22"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="memory-section" id="memorySection">
+                        <div class="memory-section-inner" id="memorySectionInner">
+                            <div class="memory-section-header">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/></svg>
+                                Copilot Memory
+                            </div>
+                            <div id="memoryContent"><div class="memory-empty">No memories yet. As you chat, the copilot will learn and remember key facts.</div></div>
+                        </div>
+                    </div>
                     <div class="chat-messages" id="chatMessages">
                         <div class="chat-messages-inner" id="messagesInner">
-                            <!-- Welcome -->
+                            <!-- Welcome state -->
                             <div class="chat-welcome" id="chatWelcome">
                                 <div class="chat-welcome-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                        <path d="M9 12l2 2 4-4"/>
                                     </svg>
                                 </div>
-                                <h2>Compliance Copilot</h2>
-                                <p>I'm your compliance copilot. Ask me anything about your compliance portfolio, documents, or regulatory requirements.</p>
-                            </div>
-                            <div class="chat-suggestions" id="suggestions">
-                                <button class="suggestion-chip" onclick="askQuestion('What documents are expiring soon?')">What documents are expiring soon?</button>
-                                <button class="suggestion-chip" onclick="askQuestion('Summarize compliance status')">Summarize compliance status</button>
-                                <button class="suggestion-chip" onclick="askQuestion('What are the biggest risk areas?')">What are the biggest risk areas?</button>
-                                <button class="suggestion-chip" onclick="askQuestion('Explain regulatory requirements')">Explain regulatory requirements</button>
+                                <h2>How can I help with your compliance needs?</h2>
+                                <p>Ask me anything about documents, entities, risk analysis, compliance scores, or regulatory requirements.</p>
+                                <div class="starter-grid" id="starterGrid">
+                                    <button class="starter-card" onclick="askQuestion('Show me expiring documents in the next 30 days')">
+                                        <div class="starter-card-icon">&#128197;</div>
+                                        <div class="starter-card-text">Show me expiring documents in the next 30 days</div>
+                                    </button>
+                                    <button class="starter-card" onclick="askQuestion('What\\'s the compliance score for Amber Corp?')">
+                                        <div class="starter-card-icon">&#128200;</div>
+                                        <div class="starter-card-text">What's the compliance score for Amber Corp?</div>
+                                    </button>
+                                    <button class="starter-card" onclick="askQuestion('Analyze the risk in my portfolio')">
+                                        <div class="starter-card-icon">&#9888;&#65039;</div>
+                                        <div class="starter-card-text">Analyze the risk in my portfolio</div>
+                                    </button>
+                                    <button class="starter-card" onclick="askQuestion('Find documents about service agreements')">
+                                        <div class="starter-card-icon">&#128269;</div>
+                                        <div class="starter-card-text">Find documents about service agreements</div>
+                                    </button>
+                                    <button class="starter-card" onclick="askQuestion('Compare all entities\\' compliance')">
+                                        <div class="starter-card-icon">&#128202;</div>
+                                        <div class="starter-card-text">Compare all entities' compliance</div>
+                                    </button>
+                                    <button class="starter-card" onclick="askQuestion('What are the main compliance gaps?')">
+                                        <div class="starter-card-icon">&#128270;</div>
+                                        <div class="starter-card-text">What are the main compliance gaps?</div>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="chat-input-area">
                         <div class="chat-input-wrap">
-                            <textarea class="chat-textarea" id="chatInput" placeholder="Ask about compliance, documents, regulations..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
-                            <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">
+                            <textarea class="chat-textarea" id="chatInput" placeholder="Ask anything about compliance..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                            <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                             </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Analysis Sidebar -->
-                <div class="analysis-sidebar" id="analysisSidebar">
-                    <div class="analysis-header">
-                        <h3>Referenced Documents</h3>
-                        <button class="analysis-toggle" onclick="toggleAnalysis()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
-                        </button>
-                    </div>
-                    <div class="analysis-body" id="analysisBody">
-                        <div class="analysis-empty">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" style="margin:0 auto 12px;display:block"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                            Documents referenced in the conversation will appear here.
                         </div>
                     </div>
                 </div>
@@ -207,66 +659,214 @@
         </div>
     </div>
 
-    <script src="/js/api.js?v=4"></script>
-    <script src="/js/components.js?v=4"></script>
+    <script src="/js/api.js?v=5"></script>
+    <script src="/js/components.js?v=5"></script>
     <script>
-        const cannedResponses = {
-            'What documents are expiring soon?': {
-                text: `Based on your current portfolio, here are the documents expiring within the next 60 days:\n\n<strong>Critical (within 30 days):</strong>\n<ul><li><strong>OSHA Safety Certificate</strong> - Harbor Industrial Complex - expires Apr 10, 2026</li><li><strong>City Business License</strong> - Riverside Medical Center - expires Apr 30, 2026</li></ul>\n\n<strong>Warning (30-60 days):</strong>\n<ul><li><strong>Commercial Lease Agreement</strong> - Airport Business Park - expires May 1, 2026</li></ul>\n\nI recommend prioritizing the OSHA certificate renewal as it has compliance implications for workplace safety regulations.`,
-                sources: [
-                    { title: 'OSHA Safety Certificate', type: 'Safety Certificate' },
-                    { title: 'City Business License', type: 'Business License' },
-                    { title: 'Commercial Lease', type: 'Lease Agreement' },
-                ],
-                docs: [
-                    { title: 'OSHA Safety Certificate', entity: 'Harbor Industrial Complex', excerpt: 'Workplace safety certification covering all operational areas. Minor violations noted during last audit require remediation before renewal.' },
-                ]
-            },
-            'Summarize compliance status': {
-                text: `Here's your compliance portfolio summary:\n\n<strong>Overall Score: 76.4/100</strong> (Fair)\n\n<ul><li><strong>Total Documents:</strong> 47 across 5 entities</li><li><strong>Compliance Rate:</strong> 84% of documents are current</li><li><strong>At Risk:</strong> 2 documents expired, 3 expiring within 30 days</li></ul>\n\n<strong>Entity Performance:</strong>\n<ul><li>Airport Business Park: 88 (Good)</li><li>Downtown Office Tower: 82 (Good)</li><li>University Research Campus: 79 (Fair)</li><li>Riverside Medical Center: 72 (Fair)</li><li>Harbor Industrial Complex: 61 (At Risk)</li></ul>\n\nThe biggest concern is <strong>Harbor Industrial Complex</strong> with an expired workers' comp policy and upcoming OSHA renewal.`,
-                sources: [
-                    { title: 'Analytics Summary', type: 'Report' },
-                    { title: 'Entity Scores', type: 'Dashboard' },
-                ],
-                docs: [
-                    { title: 'Workers Comp Policy', entity: 'Harbor Industrial Complex', excerpt: 'Workers compensation insurance policy has lapsed as of January 31, 2026. This creates a critical compliance gap that must be addressed immediately.' },
-                ]
-            },
-            'What are the biggest risk areas?': {
-                text: `I've identified the following key risk areas in your compliance portfolio:\n\n<strong>1. Lapsed Workers' Compensation (CRITICAL)</strong>\nHarbor Industrial Complex's workers' comp policy expired Jan 31. This exposes the organization to significant legal and financial risk.\n\n<strong>2. Expired Building Permit (HIGH)</strong>\nRiverside Medical Center's building permit for Wing B expansion has expired. Construction activities may need to halt until renewal.\n\n<strong>3. OSHA Compliance Gap (HIGH)</strong>\nHarbor Industrial has unresolved findings from the last OSHA inspection with renewal approaching in April.\n\n<strong>4. Vendor Concentration Risk (MEDIUM)</strong>\nBuildRight Construction has a risk score of 42/100, which is the highest vendor risk in your portfolio.\n\n<strong>Recommendations:</strong>\n<ul><li>Immediately renew workers' comp policy</li><li>Expedite building permit renewal application</li><li>Address OSHA violations before re-inspection</li><li>Diversify vendor relationships to reduce concentration risk</li></ul>`,
-                sources: [
-                    { title: 'Risk Assessment', type: 'Analysis' },
-                    { title: 'Vendor Risk Report', type: 'Report' },
-                ],
-                docs: [
-                    { title: 'Workers Comp Policy', entity: 'Harbor Industrial', excerpt: 'Policy lapsed January 31, 2026. Immediate action required to reinstate coverage and avoid regulatory penalties.' },
-                    { title: 'Building Permit #2024-1847', entity: 'Riverside Medical', excerpt: 'Construction permit expired February 28, 2026. Renewal application submitted and awaiting city planning approval.' },
-                ]
-            },
-            'Explain regulatory requirements': {
-                text: `Here's an overview of the key regulatory frameworks affecting your portfolio:\n\n<strong>OSHA (Occupational Safety & Health)</strong>\nApplies to: Harbor Industrial Complex, all entities with workers\n<ul><li>Annual workplace safety inspections required</li><li>Incident reporting within 24 hours</li><li>Safety training documentation must be current</li></ul>\n\n<strong>EPA (Environmental Protection)</strong>\nApplies to: Harbor Industrial Complex\n<ul><li>Discharge permits for water and air emissions</li><li>Quarterly monitoring reports required</li><li>Environmental impact assessments for expansions</li></ul>\n\n<strong>GDPR / Data Processing</strong>\nApplies to: University Research Campus\n<ul><li>Data Processing Agreements required with all cloud providers</li><li>Annual compliance audits recommended</li><li>Data breach notification within 72 hours</li></ul>\n\n<strong>Local Building & Safety Codes</strong>\nApplies to: All entities\n<ul><li>Valid building permits for any construction</li><li>Fire safety inspections annually</li><li>Business license renewals on schedule</li></ul>`,
-                sources: [
-                    { title: 'OSHA Standards', type: 'Regulation' },
-                    { title: 'EPA Guidelines', type: 'Regulation' },
-                    { title: 'GDPR Framework', type: 'Regulation' },
-                ],
-                docs: []
-            },
-        };
+        // ===== State =====
+        let conversations = [];
+        let currentConversationId = null;
+        let isWaiting = false;
+        let convSearchTerm = '';
 
-        const genericResponses = [
-            `Based on your compliance portfolio data, I can see several relevant insights. Your overall compliance score is 76.4, which falls in the "Fair" range. I'd recommend focusing on the entities with the lowest scores first, particularly Harbor Industrial Complex which has multiple compliance gaps.\n\nWould you like me to dive deeper into any specific area?`,
-            `I've analyzed your question against your document repository. Your portfolio contains 47 documents across 5 entities, with an 84% compliance rate. The main areas requiring attention are document renewals approaching in the next 30-60 days.\n\nLet me know if you'd like more specific information about any entity or document type.`,
-            `That's a great question. Looking at your compliance data, I can see patterns that suggest focusing on proactive document renewal management would have the biggest impact on your overall compliance posture. The entities with the strongest scores tend to have renewal processes that begin 90+ days before expiry.\n\nWould you like me to create a recommended action plan?`,
-        ];
-
-        let messageHistory = [];
-        let isTyping = false;
-
+        // ===== Init =====
         document.addEventListener('DOMContentLoaded', () => {
             if (!initLayout('copilot', 'Copilot', 'AI-powered compliance assistant')) return;
+            loadConversations();
+            loadMemories();
+            document.getElementById('chatInput').focus();
         });
 
+        // ===== Conversations =====
+        async function loadConversations() {
+            try {
+                const res = await apiGet('/api/copilot/conversations');
+                if (res && res.ok) {
+                    const data = await res.json();
+                    conversations = data.conversations || [];
+                } else {
+                    conversations = [];
+                }
+            } catch {
+                conversations = [];
+            }
+            renderConversationList();
+        }
+
+        function renderConversationList() {
+            const list = document.getElementById('convList');
+            const empty = document.getElementById('convEmpty');
+            const filtered = conversations.filter(c =>
+                !convSearchTerm || c.title.toLowerCase().includes(convSearchTerm.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                empty.style.display = '';
+                list.querySelectorAll('.conv-item').forEach(el => el.remove());
+                return;
+            }
+            empty.style.display = 'none';
+
+            let html = '';
+            for (const c of filtered) {
+                const isActive = c.id === currentConversationId;
+                const time = c.updated_at ? formatRelativeTime(c.updated_at) : '';
+                const preview = c.last_message ? truncate(c.last_message, 50) : 'No messages yet';
+                html += `
+                <div class="conv-item${isActive ? ' active' : ''}" onclick="selectConversation('${c.id}')" data-id="${c.id}">
+                    <div class="conv-item-actions">
+                        <button onclick="event.stopPropagation(); renameConversation('${c.id}')" title="Rename">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteConversation('${c.id}')" title="Delete">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        </button>
+                    </div>
+                    <div class="conv-item-title">${escapeHtml(c.title || 'Untitled')}</div>
+                    <div class="conv-item-preview">${escapeHtml(preview)}</div>
+                    <div class="conv-item-meta">
+                        <span>${time}</span>
+                        ${c.message_count ? `<span class="conv-item-badge">${c.message_count}</span>` : ''}
+                    </div>
+                </div>`;
+            }
+            // Remove old items, keep empty div
+            list.querySelectorAll('.conv-item').forEach(el => el.remove());
+            list.insertAdjacentHTML('afterbegin', html);
+        }
+
+        function filterConversations(term) {
+            convSearchTerm = term;
+            renderConversationList();
+        }
+
+        async function selectConversation(id) {
+            if (id === currentConversationId) return;
+            currentConversationId = id;
+            renderConversationList();
+
+            const container = document.getElementById('messagesInner');
+            container.innerHTML = '<div style="text-align:center;padding:40px;">' + renderSpinner(24) + '</div>';
+            document.getElementById('chatWelcome')?.remove();
+
+            try {
+                const res = await apiGet(`/api/copilot/conversations/${id}`);
+                if (res && res.ok) {
+                    const data = await res.json();
+                    document.getElementById('chatHeaderTitle').textContent = data.title || 'Chat';
+                    container.innerHTML = '';
+                    if (data.messages && data.messages.length > 0) {
+                        for (const msg of data.messages) {
+                            appendMessage(msg);
+                        }
+                    }
+                    scrollToBottom();
+                } else {
+                    throw new Error('Failed to load');
+                }
+            } catch {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:var(--text-sm);">Failed to load conversation</div>';
+            }
+
+            // Close mobile panel
+            if (window.innerWidth <= 768) toggleConvPanel();
+        }
+
+        async function newChat() {
+            currentConversationId = null;
+            document.getElementById('chatHeaderTitle').textContent = 'New Chat';
+            const container = document.getElementById('messagesInner');
+            container.innerHTML = '';
+            renderWelcome(container);
+            renderConversationList();
+            document.getElementById('chatInput').focus();
+            // Close mobile panel
+            if (window.innerWidth <= 768) toggleConvPanel();
+        }
+
+        function renderWelcome(container) {
+            container.innerHTML = `
+            <div class="chat-welcome" id="chatWelcome">
+                <div class="chat-welcome-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <path d="M9 12l2 2 4-4"/>
+                    </svg>
+                </div>
+                <h2>How can I help with your compliance needs?</h2>
+                <p>Ask me anything about documents, entities, risk analysis, compliance scores, or regulatory requirements.</p>
+                <div class="starter-grid">
+                    <button class="starter-card" onclick="askQuestion('Show me expiring documents in the next 30 days')">
+                        <div class="starter-card-icon">&#128197;</div>
+                        <div class="starter-card-text">Show me expiring documents in the next 30 days</div>
+                    </button>
+                    <button class="starter-card" onclick="askQuestion('What\\'s the compliance score for Amber Corp?')">
+                        <div class="starter-card-icon">&#128200;</div>
+                        <div class="starter-card-text">What's the compliance score for Amber Corp?</div>
+                    </button>
+                    <button class="starter-card" onclick="askQuestion('Analyze the risk in my portfolio')">
+                        <div class="starter-card-icon">&#9888;&#65039;</div>
+                        <div class="starter-card-text">Analyze the risk in my portfolio</div>
+                    </button>
+                    <button class="starter-card" onclick="askQuestion('Find documents about service agreements')">
+                        <div class="starter-card-icon">&#128269;</div>
+                        <div class="starter-card-text">Find documents about service agreements</div>
+                    </button>
+                    <button class="starter-card" onclick="askQuestion('Compare all entities\\' compliance')">
+                        <div class="starter-card-icon">&#128202;</div>
+                        <div class="starter-card-text">Compare all entities' compliance</div>
+                    </button>
+                    <button class="starter-card" onclick="askQuestion('What are the main compliance gaps?')">
+                        <div class="starter-card-icon">&#128270;</div>
+                        <div class="starter-card-text">What are the main compliance gaps?</div>
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        async function deleteConversation(id) {
+            const ok = await confirmAction('Delete this conversation? This cannot be undone.');
+            if (!ok) return;
+            try {
+                await apiDelete(`/api/copilot/conversations/${id}`);
+                conversations = conversations.filter(c => c.id !== id);
+                if (currentConversationId === id) newChat();
+                renderConversationList();
+                showToast('Conversation deleted', 'success');
+            } catch {
+                showToast('Failed to delete conversation', 'error');
+            }
+        }
+
+        async function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            const newTitle = prompt('Rename conversation:', conv?.title || '');
+            if (!newTitle || newTitle.trim() === '') return;
+            try {
+                await apiPost(`/api/copilot/conversations/${id}/title`, { title: newTitle.trim() });
+                const c = conversations.find(c => c.id === id);
+                if (c) c.title = newTitle.trim();
+                if (currentConversationId === id) {
+                    document.getElementById('chatHeaderTitle').textContent = newTitle.trim();
+                }
+                renderConversationList();
+                showToast('Conversation renamed', 'success');
+            } catch {
+                showToast('Failed to rename', 'error');
+            }
+        }
+
+        function toggleConvPanel() {
+            const panel = document.getElementById('convPanel');
+            const overlay = document.getElementById('convOverlay');
+            if (window.innerWidth <= 768) {
+                panel.classList.toggle('mobile-open');
+                overlay.classList.toggle('visible', panel.classList.contains('mobile-open'));
+            } else {
+                panel.classList.toggle('collapsed');
+            }
+        }
+
+        // ===== Chat =====
         function askQuestion(question) {
             document.getElementById('chatInput').value = question;
             sendMessage();
@@ -277,130 +877,805 @@
                 event.preventDefault();
                 sendMessage();
             }
+            if (event.key === 'Escape') {
+                document.getElementById('chatInput').value = '';
+                autoResize(document.getElementById('chatInput'));
+            }
         }
 
         function autoResize(textarea) {
             textarea.style.height = 'auto';
-            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+            textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
         }
 
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            if (!text || isTyping) return;
+            if (!text || isWaiting) return;
 
-            // Hide welcome on first message
+            // Hide welcome
             const welcome = document.getElementById('chatWelcome');
-            const suggestions = document.getElementById('suggestions');
             if (welcome) welcome.style.display = 'none';
-            if (suggestions) suggestions.style.display = 'none';
 
             // Add user message
-            addMessage(text, 'user');
+            appendMessage({ role: 'user', content: text, timestamp: new Date().toISOString() });
             input.value = '';
             autoResize(input);
 
-            // Show typing indicator
-            isTyping = true;
+            // Disable input
+            isWaiting = true;
+            document.getElementById('sendBtn').disabled = true;
             showTypingIndicator();
 
-            // Call real Copilot API, fall back to canned responses
             try {
-                const res = await apiPost('/api/copilot/query', { query: text });
-                removeTypingIndicator();
-                isTyping = false;
+                const payload = { message: text };
+                if (currentConversationId) payload.conversation_id = currentConversationId;
+
+                const res = await apiPost('/api/copilot/chat', payload);
+                hideTypingIndicator();
+
                 if (res && res.ok) {
                     const data = await res.json();
-                    const answer = data.response || data.answer || '';
-                    const sources = (data.sources || []).map(s => ({ title: s.title || s.document_name || 'Document', id: s.id || '' }));
-                    addMessage(answer, 'ai', sources.length > 0 ? sources : undefined);
+
+                    // Update conversation ID
+                    if (data.conversation_id && !currentConversationId) {
+                        currentConversationId = data.conversation_id;
+                        loadConversations();
+                    }
+
+                    // Update header title if new conversation
+                    if (data.conversation_id) {
+                        const conv = conversations.find(c => c.id === data.conversation_id);
+                        if (conv) document.getElementById('chatHeaderTitle').textContent = conv.title;
+                    }
+
+                    // Append assistant response
+                    appendMessage({
+                        role: 'assistant',
+                        content: data.message || '',
+                        data: data.data || null,
+                        sources: data.sources || null,
+                        suggested_actions: data.suggested_actions || null,
+                        timestamp: new Date().toISOString()
+                    });
                 } else {
-                    throw new Error('fallback');
+                    const errData = res ? await res.json().catch(() => ({})) : {};
+                    appendMessage({
+                        role: 'assistant',
+                        content: errData.detail || 'Sorry, I encountered an error processing your request. Please try again.',
+                        data: { type: 'error', detail: errData.detail || 'Request failed' },
+                        timestamp: new Date().toISOString()
+                    });
                 }
-            } catch {
-                removeTypingIndicator();
-                isTyping = false;
-                const canned = cannedResponses[text];
-                if (canned) {
-                    addMessage(canned.text, 'ai', canned.sources);
-                    if (canned.docs && canned.docs.length > 0) updateAnalysisSidebar(canned.docs);
-                } else {
-                    const response = genericResponses[Math.floor(Math.random() * genericResponses.length)];
-                    addMessage(response, 'ai');
-                }
+            } catch (err) {
+                hideTypingIndicator();
+                appendMessage({
+                    role: 'assistant',
+                    content: 'Unable to reach the server. Please check your connection and try again.',
+                    data: { type: 'error', detail: err.message },
+                    timestamp: new Date().toISOString()
+                });
             }
+
+            isWaiting = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('chatInput').focus();
         }
 
-        function addMessage(text, role, sources) {
+        // ===== Message Rendering =====
+        function appendMessage(msg) {
             const container = document.getElementById('messagesInner');
+            const role = msg.role === 'user' ? 'user' : 'ai';
             const user = getUser() || { name: 'Admin' };
-            const initials = role === 'user' ? (user.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : 'AI';
-            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const initials = role === 'user' ? (user.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '';
+            const time = msg.timestamp ? formatTime(msg.timestamp) : '';
 
-            let sourcesHtml = '';
-            if (sources && sources.length > 0) {
-                sourcesHtml = `<div class="message-sources">${sources.map(s => `
-                    <div class="source-card">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span>${s.title}</span>
-                    </div>
-                `).join('')}</div>`;
+            const el = document.createElement('div');
+            el.className = `message message-${role}`;
+
+            let avatarContent = role === 'ai'
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>'
+                : initials;
+
+            let bodyHtml = `<div class="message-bubble">${renderMarkdown(msg.content || '')}</div>`;
+
+            // Rich data block
+            if (msg.data && msg.data.type && msg.data.type !== 'text' && msg.data.type !== 'empty') {
+                bodyHtml += renderData(msg.data);
             }
 
-            const messageEl = document.createElement('div');
-            messageEl.className = `message message-${role}`;
-            messageEl.innerHTML = `
-                <div class="message-avatar">${role === 'ai' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' : initials}</div>
-                <div class="message-content">
-                    <div class="message-bubble">${text}</div>
-                    ${sourcesHtml}
-                    <div class="message-time">${time}</div>
-                </div>
+            // Sources
+            if (msg.sources && msg.sources.length > 0) {
+                bodyHtml += renderSources(msg.sources);
+            }
+
+            // Suggested actions
+            if (msg.suggested_actions && msg.suggested_actions.length > 0) {
+                bodyHtml += renderSuggestedActions(msg.suggested_actions);
+            }
+
+            bodyHtml += `<div class="message-time">${time}</div>`;
+
+            el.innerHTML = `
+                <div class="message-avatar">${avatarContent}</div>
+                <div class="message-body">${bodyHtml}</div>
             `;
-            container.appendChild(messageEl);
+
+            container.appendChild(el);
             scrollToBottom();
+            setTimeout(scrollToBottom, 150);
         }
 
+        // ===== Data Renderers =====
+        function renderData(data) {
+            if (!data || !data.type) return '';
+            switch (data.type) {
+                case 'document_table': return renderDocumentTable(data);
+                case 'document_card': return renderDocumentCard(data);
+                case 'entity_card': return renderEntityCard(data);
+                case 'entity_table': return renderEntityTable(data);
+                case 'score_chart': return renderScoreChart(data);
+                case 'analytics_summary': return renderAnalyticsSummary(data);
+                case 'risk_matrix': return renderRiskMatrix(data);
+                case 'trends': return renderTrends(data);
+                case 'expiry_forecast': return renderExpiryForecast(data);
+                case 'expiry_list': return renderExpiryList(data);
+                case 'gap_list': return renderGapList(data);
+                case 'comparison_table': return renderComparisonTable(data);
+                case 'search_results': return renderSearchResults(data);
+                case 'reminder_card': return renderReminderCard(data);
+                case 'upload_prompt': return renderUploadPrompt(data);
+                case 'risk_analysis': return renderRiskAnalysis(data);
+                case 'error': return renderError(data);
+                default: return '';
+            }
+        }
+
+        function renderDocumentTable(data) {
+            if (!data.rows || data.rows.length === 0) return '';
+            let html = `<div class="copilot-data-block">
+                <div class="copilot-data-block-header">&#128196; Documents${data.total ? ` (${data.total})` : ''}</div>
+                <div style="overflow-x:auto">
+                <table class="copilot-table"><thead><tr>
+                    <th>Name</th><th>Type</th><th>Entity</th><th>Score</th><th>Status</th>
+                </tr></thead><tbody>`;
+            for (const r of data.rows) {
+                const scoreClass = (r.score >= 80) ? 'score-high' : (r.score >= 60) ? 'score-mid' : 'score-low';
+                const statusPill = getStatusPillClass(r.status);
+                html += `<tr>
+                    <td class="td-name">${r.id ? `<a href="/documents.html?id=${r.id}">${escapeHtml(r.name)}</a>` : escapeHtml(r.name)}</td>
+                    <td>${escapeHtml(r.type || '')}</td>
+                    <td>${escapeHtml(r.entity || '')}</td>
+                    <td><span class="score-inline ${scoreClass}">${r.score ?? '-'}</span></td>
+                    <td><span class="pill ${statusPill}">${r.status || '-'}</span></td>
+                </tr>`;
+            }
+            html += '</tbody></table></div></div>';
+            return html;
+        }
+
+        function renderDocumentCard(data) {
+            const d = data.document;
+            if (!d) return '';
+            const statusPill = getStatusPillClass(d.status);
+            const scoreClass = (d.score >= 80) ? 'score-high' : (d.score >= 60) ? 'score-mid' : 'score-low';
+            let html = `<div class="copilot-doc-card">
+                <div class="doc-card-header">
+                    <span>&#128196;</span>
+                    <h4>${escapeHtml(d.name)}</h4>
+                    <span class="pill ${statusPill}">${d.status || ''}</span>
+                    <span class="score-inline ${scoreClass}">${d.score ?? ''}</span>
+                </div>
+                <div class="doc-card-body">
+                    <div class="doc-meta">
+                        <span>Type: ${escapeHtml(d.type || '-')}</span>
+                        <span>Entity: ${escapeHtml(d.entity || '-')}</span>
+                        ${d.expiry_date ? `<span>Expires: ${formatDate(d.expiry_date)}</span>` : ''}
+                    </div>`;
+            if (d.summary) html += `<p class="doc-summary">${escapeHtml(d.summary)}</p>`;
+            if (d.risk_flags && d.risk_flags.length > 0) {
+                html += `<div class="doc-risk-flags">${d.risk_flags.map(f => `<span class="doc-risk-flag">&#9888;&#65039; ${escapeHtml(f)}</span>`).join('')}</div>`;
+            }
+            if (d.key_clauses && d.key_clauses.length > 0) {
+                html += `<div class="doc-clauses">${d.key_clauses.map(c => `<span class="doc-clause-tag">${escapeHtml(c)}</span>`).join('')}</div>`;
+            }
+            html += '</div></div>';
+            return html;
+        }
+
+        function renderEntityCard(data) {
+            const e = data.entity;
+            if (!e) return '';
+            const scoreColor = (e.score >= 80) ? 'var(--success)' : (e.score >= 60) ? 'var(--warning)' : 'var(--danger)';
+            const riskPill = getRiskPillClass(e.risk_level);
+            return `<div class="copilot-entity-card">
+                <div class="entity-header">
+                    <h4>${escapeHtml(e.name)}</h4>
+                    <div class="entity-score-badge" style="background:${scoreColor}">${e.score ?? '-'}</div>
+                    <span class="pill ${riskPill}">${e.risk_level || ''}</span>
+                </div>
+                <div class="entity-docs">${e.document_count || 0} documents${e.type ? ` &middot; ${escapeHtml(e.type)}` : ''}</div>
+            </div>`;
+        }
+
+        function renderEntityTable(data) {
+            if (!data.rows || data.rows.length === 0) return '';
+            let html = `<div class="copilot-data-block">
+                <div class="copilot-data-block-header">&#127970; Entities${data.total ? ` (${data.total})` : ''}</div>
+                <div style="overflow-x:auto">
+                <table class="copilot-table"><thead><tr>
+                    <th>Name</th><th>Type</th><th>Score</th><th>Risk</th><th>Documents</th>
+                </tr></thead><tbody>`;
+            for (const r of data.rows) {
+                const scoreClass = (r.score >= 80) ? 'score-high' : (r.score >= 60) ? 'score-mid' : 'score-low';
+                const riskPill = getRiskPillClass(r.risk_level);
+                html += `<tr>
+                    <td class="td-name">${r.id ? `<a href="/entities.html?id=${r.id}">${escapeHtml(r.name)}</a>` : escapeHtml(r.name)}</td>
+                    <td>${escapeHtml(r.type || '')}</td>
+                    <td><span class="score-inline ${scoreClass}">${r.score ?? '-'}</span></td>
+                    <td><span class="pill ${riskPill}">${r.risk_level || '-'}</span></td>
+                    <td>${r.document_count ?? '-'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div></div>';
+            return html;
+        }
+
+        function renderScoreChart(data) {
+            const scoreColor = (data.overall_score >= 80) ? 'var(--success)' : (data.overall_score >= 60) ? 'var(--warning)' : 'var(--danger)';
+            let html = `<div class="score-chart">
+                <div class="score-chart-header">
+                    <div class="score-big" style="color:${scoreColor}">${data.overall_score ?? '-'}</div>
+                    <div>
+                        <div class="score-grade">${escapeHtml(data.grade || '')}</div>
+                        <div style="font-size:var(--text-xs);color:var(--text-muted)">${escapeHtml(data.entity_name || '')}</div>
+                    </div>
+                </div>`;
+            if (data.breakdown) {
+                for (const [key, value] of Object.entries(data.breakdown)) {
+                    const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const barColor = (value >= 80) ? 'var(--success)' : (value >= 60) ? 'var(--warning)' : 'var(--danger)';
+                    html += `<div class="score-bar-row">
+                        <div class="score-bar-label">${label}</div>
+                        <div class="score-bar-track"><div class="score-bar-fill" style="width:${value}%;background:${barColor}"></div></div>
+                        <div class="score-bar-value">${value}</div>
+                    </div>`;
+                }
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function renderAnalyticsSummary(data) {
+            const stats = [
+                { value: data.total_documents ?? '-', label: 'Documents' },
+                { value: data.active_entities ?? '-', label: 'Entities' },
+                { value: data.avg_score ?? '-', label: 'Avg Score' },
+                { value: data.compliance_rate ? data.compliance_rate + '%' : '-', label: 'Compliance' },
+                { value: data.at_risk ?? '-', label: 'At Risk' },
+                { value: data.expiring_soon ?? '-', label: 'Expiring Soon' },
+            ];
+            let html = '<div class="analytics-grid">';
+            for (const s of stats) {
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-value">${s.value}</div>
+                    <div class="analytics-stat-label">${s.label}</div>
+                </div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function renderRiskMatrix(data) {
+            if (!data.entities || data.entities.length === 0) return '';
+            let html = '<div class="risk-matrix">';
+            for (const e of data.entities) {
+                const scoreColor = (e.score >= 80) ? 'var(--success)' : (e.score >= 60) ? 'var(--warning)' : 'var(--danger)';
+                const riskPill = getRiskPillClass(e.risk_level);
+                html += `<div class="risk-matrix-item">
+                    <div class="risk-matrix-name">${escapeHtml(e.name)}</div>
+                    <span class="score-inline" style="background:${scoreColor}">${e.score ?? '-'}</span>
+                    <span class="pill ${riskPill}">${e.risk_level || ''}</span>
+                    <span class="risk-matrix-count">${e.document_count || 0} docs</span>
+                </div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function renderTrends(data) {
+            if (!data.datasets || data.datasets.length === 0) return '';
+            let html = '<div class="copilot-data-block"><div class="copilot-data-block-header">&#128200; Trends</div><div style="padding:14px;">';
+            for (const ds of data.datasets) {
+                const values = ds.data || [];
+                const max = Math.max(...values, 1);
+                html += `<div style="margin-bottom:12px"><div style="font-size:var(--text-xs);font-weight:600;margin-bottom:6px">${escapeHtml(ds.label)}</div>`;
+                html += '<div style="display:flex;align-items:flex-end;gap:3px;height:40px">';
+                for (const v of values) {
+                    const h = Math.max((v / max) * 100, 4);
+                    html += `<div style="flex:1;background:var(--accent);border-radius:2px 2px 0 0;height:${h}%" title="${v}"></div>`;
+                }
+                html += '</div>';
+                if (data.labels && data.labels.length > 0) {
+                    html += '<div style="display:flex;gap:3px;margin-top:2px">';
+                    for (const l of data.labels) {
+                        html += `<div style="flex:1;font-size:9px;color:var(--text-muted);text-align:center;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l)}</div>`;
+                    }
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+            html += '</div></div>';
+            return html;
+        }
+
+        function renderExpiryForecast(data) {
+            const items = [
+                { count: data.overdue ?? 0, label: 'Overdue', color: 'var(--danger)' },
+                { count: data.within_30d ?? 0, label: '< 30 days', color: 'var(--warning)' },
+                { count: data.within_60d ?? 0, label: '30-60 days', color: '#f59e0b' },
+                { count: data.within_90d ?? 0, label: '60-90 days', color: 'var(--info)' },
+                { count: data.beyond_90d ?? 0, label: '90+ days', color: 'var(--success)' },
+            ];
+            let html = '<div class="expiry-forecast">';
+            for (const i of items) {
+                html += `<div class="expiry-forecast-item">
+                    <div class="expiry-forecast-count" style="color:${i.color}">${i.count}</div>
+                    <div class="expiry-forecast-label">${i.label}</div>
+                </div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function renderExpiryList(data) {
+            const docs = data.documents || [...(data.overdue || []), ...(data.expiring || [])];
+            if (!docs || docs.length === 0) return '';
+            let html = `<div class="copilot-data-block">
+                <div class="copilot-data-block-header">&#128197; Expiring Documents</div>
+                <div style="overflow-x:auto">
+                <table class="copilot-table"><thead><tr>
+                    <th>Document</th><th>Entity</th><th>Expiry Date</th><th>Days Left</th><th>Status</th>
+                </tr></thead><tbody>`;
+            for (const d of docs) {
+                const daysClass = (d.days_left <= 0) ? 'expiry-overdue' : (d.days_left <= 30) ? 'expiry-soon' : 'expiry-ok';
+                const statusPill = getStatusPillClass(d.status);
+                html += `<tr>
+                    <td class="td-name">${escapeHtml(d.name)}</td>
+                    <td>${escapeHtml(d.entity || '')}</td>
+                    <td>${formatDate(d.expiry_date)}</td>
+                    <td><span class="expiry-days ${daysClass}">${d.days_left <= 0 ? 'Overdue' : d.days_left + 'd'}</span></td>
+                    <td><span class="pill ${statusPill}">${d.status || ''}</span></td>
+                </tr>`;
+            }
+            html += '</tbody></table></div></div>';
+            return html;
+        }
+
+        function renderGapList(data) {
+            if (!data.gaps || data.gaps.length === 0) return '';
+            const sevMap = { critical: 'pill-danger', high: 'pill-warning', medium: 'pill-info', low: 'pill-neutral' };
+            let html = `<div class="gap-list">`;
+            if (data.entity_name) html = `<div style="font-size:var(--text-xs);font-weight:600;color:var(--text-secondary);margin-top:8px;margin-bottom:4px">Gaps for ${escapeHtml(data.entity_name)}</div>` + html;
+            for (const g of data.gaps) {
+                const sevClass = sevMap[g.severity] || 'pill-neutral';
+                html += `<div class="gap-card">
+                    <div class="gap-card-header">
+                        <span class="pill ${sevClass}">${g.severity || ''}</span>
+                        <span class="gap-type">${escapeHtml(g.type || '')}</span>
+                    </div>
+                    <div class="gap-card-desc">${escapeHtml(g.description || '')}</div>
+                    ${g.recommendation ? `<div class="gap-card-rec">${escapeHtml(g.recommendation)}</div>` : ''}
+                </div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function renderComparisonTable(data) {
+            if (!data.entities || data.entities.length === 0) return '';
+            let html = `<div class="copilot-data-block">
+                <div class="copilot-data-block-header">&#128202; Entity Comparison${data.winner ? ` &mdash; Winner: ${escapeHtml(data.winner)}` : ''}</div>
+                <div style="overflow-x:auto">
+                <table class="copilot-table"><thead><tr>
+                    <th>Entity</th><th>Score</th><th>Grade</th><th>Risk</th><th>Documents</th>
+                </tr></thead><tbody>`;
+            for (const e of data.entities) {
+                const isWinner = data.winner && e.name === data.winner;
+                const scoreClass = (e.score >= 80) ? 'score-high' : (e.score >= 60) ? 'score-mid' : 'score-low';
+                const riskPill = getRiskPillClass(e.risk_level);
+                html += `<tr${isWinner ? ' style="background:var(--accent-light)"' : ''}>
+                    <td class="td-name">${isWinner ? '&#9733; ' : ''}${escapeHtml(e.name)}</td>
+                    <td><span class="score-inline ${scoreClass}">${e.score ?? '-'}</span></td>
+                    <td>${escapeHtml(e.grade || '-')}</td>
+                    <td><span class="pill ${riskPill}">${e.risk_level || '-'}</span></td>
+                    <td>${e.document_count ?? '-'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div></div>';
+            return html;
+        }
+
+        function renderSearchResults(data) {
+            if (!data.results || data.results.length === 0) return '';
+            let html = '';
+            for (const r of data.results) {
+                const relevance = r.relevance ?? 0;
+                html += `<div class="search-result-card">
+                    <div class="search-result-name">${escapeHtml(r.document_name)}</div>
+                    <div class="search-result-bar"><div class="search-result-bar-fill" style="width:${relevance}%"></div></div>
+                    <div class="search-result-excerpt">${escapeHtml(r.excerpt || '')}</div>
+                </div>`;
+            }
+            return html;
+        }
+
+        function renderReminderCard(data) {
+            const r = data.reminder;
+            if (!r) return '';
+            return `<div class="reminder-card">
+                <h4>${escapeHtml(r.title)}</h4>
+                <div class="reminder-card-meta">
+                    ${r.due_date ? `Due: ${formatDate(r.due_date)}` : ''}
+                    ${r.entity ? ` &middot; ${escapeHtml(r.entity)}` : ''}
+                    ${r.document ? ` &middot; ${escapeHtml(r.document)}` : ''}
+                    ${r.type ? ` &middot; Type: ${escapeHtml(r.type)}` : ''}
+                </div>
+            </div>`;
+        }
+
+        function renderError(data) {
+            return `<div style="margin-top:8px;padding:10px 14px;border-radius:var(--radius-md);background:var(--danger-bg);border:1px solid rgba(220,38,38,0.2);font-size:var(--text-xs);color:var(--danger)">
+                ${escapeHtml(data.detail || 'An error occurred')}
+            </div>`;
+        }
+
+        // ===== Upload Prompt Renderer =====
+        function renderUploadPrompt(data) {
+            const uid = 'upload_' + Date.now();
+            const meta = [];
+            if (data.entity_name) meta.push('Entity: ' + data.entity_name);
+            if (data.document_type) meta.push('Type: ' + data.document_type);
+            if (data.action === 'replace' && data.document_name) meta.push('Replacing: ' + data.document_name);
+            return `<div class="upload-prompt-card" id="${uid}_card">
+                <div class="upload-prompt-icon">${data.action === 'replace' ? '&#128260;' : '&#128228;'}</div>
+                <div class="upload-prompt-text">${data.action === 'replace' ? 'Select a replacement file' : 'Select a file to upload'}</div>
+                ${meta.length ? `<div class="upload-prompt-meta">${meta.join(' &middot; ')}</div>` : ''}
+                <input type="file" class="upload-file-input" id="${uid}_input" accept=".pdf,.doc,.docx" onchange="handleCopilotUpload('${uid}', '${data.action || 'upload'}', ${escapeHtml(JSON.stringify({entity_name: data.entity_name||'', document_type: data.document_type||'', document_id: data.document_id||''}))})">
+                <button class="upload-prompt-btn" id="${uid}_btn" onclick="document.getElementById('${uid}_input').click()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Choose File
+                </button>
+                <div class="upload-progress" id="${uid}_progress" style="display:none">
+                    <span id="${uid}_status">Uploading...</span>
+                    <div class="upload-progress-bar"><div class="upload-progress-fill"></div></div>
+                </div>
+            </div>`;
+        }
+
+        async function handleCopilotUpload(uid, action, metaStr) {
+            const meta = typeof metaStr === 'string' ? JSON.parse(metaStr) : metaStr;
+            const input = document.getElementById(uid + '_input');
+            const btn = document.getElementById(uid + '_btn');
+            const progress = document.getElementById(uid + '_progress');
+            const status = document.getElementById(uid + '_status');
+
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+
+            btn.disabled = true;
+            btn.textContent = file.name;
+            progress.style.display = '';
+            status.textContent = `Uploading ${file.name}...`;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('action', action);
+                formData.append('entity_name', meta.entity_name || '');
+                formData.append('document_type', meta.document_type || '');
+                formData.append('document_id', meta.document_id || '');
+
+                const token = localStorage.getItem('complychip_token');
+                const res = await fetch('/api/copilot/upload', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+                    body: formData,
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    status.textContent = 'Upload complete!';
+                    status.style.color = 'var(--success)';
+                    // Append result as new AI message
+                    appendMessage({
+                        role: 'assistant',
+                        content: data.message || 'Document uploaded successfully.',
+                        data: data.data || null,
+                        timestamp: new Date().toISOString(),
+                    });
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    status.textContent = 'Upload failed: ' + (err.detail || 'Unknown error');
+                    status.style.color = 'var(--danger)';
+                }
+            } catch (e) {
+                status.textContent = 'Upload failed: ' + e.message;
+                status.style.color = 'var(--danger)';
+            }
+            btn.disabled = false;
+        }
+
+        // ===== Risk Analysis Renderer =====
+        function renderRiskAnalysis(data) {
+            const riskClass = {'CRITICAL':'risk-badge-critical','HIGH':'risk-badge-high','MEDIUM':'risk-badge-medium','LOW':'risk-badge-low'};
+            const badgeClass = riskClass[(data.risk_score || '').toUpperCase()] || 'risk-badge-medium';
+
+            let html = `<div class="copilot-data-block">
+                <div class="risk-analysis-header">
+                    <span class="risk-badge ${badgeClass}">${escapeHtml(data.risk_score || 'MEDIUM')}</span>
+                    <div style="flex:1">
+                        <div style="font-size:var(--text-sm);font-weight:600">${escapeHtml(data.entity_name || 'Risk Analysis')}</div>
+                        <div style="font-size:10px;color:var(--text-muted)">${data.document_count || 0} documents analyzed</div>
+                    </div>
+                </div>`;
+
+            // Gaps
+            if (data.gaps && data.gaps.length > 0) {
+                html += renderGapList({gaps: data.gaps, entity_name: ''});
+            }
+
+            // Recommendations
+            if (data.recommendations && data.recommendations.length > 0) {
+                html += `<div class="risk-recs">
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px">Recommendations</div>`;
+                for (const r of data.recommendations.slice(0, 8)) {
+                    const text = typeof r === 'string' ? r : (r.message || r.recommendation || r.description || '');
+                    if (text) html += `<div class="risk-rec-item">${escapeHtml(text)}</div>`;
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        // ===== Sources =====
+        function renderSources(sources) {
+            if (!sources || sources.length === 0) return '';
+            let html = '<div class="msg-sources"><span class="msg-sources-label">Sources:</span>';
+            for (const s of sources) {
+                const label = typeof s === 'string' ? s : (s.title || s.name || s.document_name || 'Source');
+                const relevance = s.relevance ? ` (${s.relevance}%)` : '';
+                html += `<span class="source-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${escapeHtml(label)}${relevance}</span>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        // ===== Suggested Actions =====
+        function renderSuggestedActions(actions) {
+            if (!actions || actions.length === 0) return '';
+            let html = '<div class="suggested-actions">';
+            for (const a of actions) {
+                const paramsStr = a.params ? encodeURIComponent(JSON.stringify(a.params)) : '';
+                html += `<button class="action-chip" onclick="executeSuggestion('${escapeHtml(a.action || '')}', '${paramsStr}')">${escapeHtml(a.label)}</button>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        async function executeSuggestion(action, encodedParams) {
+            let params = {};
+            try { params = JSON.parse(decodeURIComponent(encodedParams)); } catch {}
+
+            // Treat as a new message to the copilot
+            const message = params.query || params.message || action;
+            document.getElementById('chatInput').value = message;
+            sendMessage();
+        }
+
+        // ===== Typing Indicator =====
         function showTypingIndicator() {
             const container = document.getElementById('messagesInner');
-            const indicator = document.createElement('div');
-            indicator.className = 'message message-ai';
-            indicator.id = 'typingIndicator';
-            indicator.innerHTML = `
-                <div class="message-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-                <div class="message-content">
-                    <div class="message-bubble">
+            const el = document.createElement('div');
+            el.className = 'message message-ai';
+            el.id = 'typingIndicator';
+            el.innerHTML = `
+                <div class="message-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+                <div class="message-body">
+                    <div class="message-bubble" style="display:inline-block">
                         <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
                     </div>
-                </div>
-            `;
-            container.appendChild(indicator);
+                </div>`;
+            container.appendChild(el);
             scrollToBottom();
         }
 
-        function removeTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            if (indicator) indicator.remove();
+        function hideTypingIndicator() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
         }
 
+        // ===== Scroll =====
         function scrollToBottom() {
-            const messages = document.getElementById('chatMessages');
-            messages.scrollTop = messages.scrollHeight;
+            const el = document.getElementById('chatMessages');
+            requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
         }
 
-        function toggleAnalysis() {
-            document.getElementById('analysisSidebar').classList.toggle('collapsed');
+        // ===== Utilities =====
+        function renderMarkdown(text) {
+            if (!text) return '';
+            // Basic markdown: bold, italic, inline code, lists, paragraphs
+            let html = escapeHtml(text);
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Italic
+            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // Unordered lists
+            html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+            // Line breaks to paragraphs
+            html = html.replace(/\n\n/g, '</p><p>');
+            html = html.replace(/\n/g, '<br>');
+            html = '<p>' + html + '</p>';
+            html = html.replace(/<p><\/p>/g, '');
+            return html;
         }
 
-        function updateAnalysisSidebar(docs) {
-            const body = document.getElementById('analysisBody');
-            body.innerHTML = docs.map(d => `
-                <div class="analysis-doc">
-                    <div class="analysis-doc-title">${d.title}</div>
-                    <div class="analysis-doc-meta">${d.entity || ''}</div>
-                    ${d.excerpt ? `<div class="analysis-doc-excerpt">${d.excerpt}</div>` : ''}
-                </div>
-            `).join('');
+        function escapeHtml(str) {
+            if (!str) return '';
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return String(str).replace(/[&<>"']/g, c => map[c]);
+        }
+
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        function formatTime(ts) {
+            try {
+                return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } catch { return ''; }
+        }
+
+        function formatRelativeTime(ts) {
+            try {
+                const diff = Date.now() - new Date(ts).getTime();
+                const mins = Math.floor(diff / 60000);
+                if (mins < 1) return 'just now';
+                if (mins < 60) return mins + 'm ago';
+                const hrs = Math.floor(mins / 60);
+                if (hrs < 24) return hrs + 'h ago';
+                const days = Math.floor(hrs / 24);
+                if (days < 7) return days + 'd ago';
+                return formatDate(ts);
+            } catch { return ''; }
+        }
+
+        function getStatusPillClass(status) {
+            const map = { compliant: 'pill-success', active: 'pill-success', warning: 'pill-warning', pending: 'pill-warning', expired: 'pill-danger', 'non-compliant': 'pill-danger', archived: 'pill-neutral' };
+            return map[status] || 'pill-neutral';
+        }
+
+        function getRiskPillClass(level) {
+            const map = { low: 'pill-success', medium: 'pill-warning', high: 'pill-danger', critical: 'pill-danger' };
+            return map[level] || 'pill-neutral';
+        }
+
+        // ===== Memory Panel =====
+        let userMemories = [];
+
+        async function loadMemories() {
+            try {
+                const res = await apiGet('/api/copilot/memory');
+                if (res && res.ok) {
+                    const data = await res.json();
+                    userMemories = data.memories || [];
+                } else {
+                    userMemories = [];
+                }
+            } catch {
+                userMemories = [];
+            }
+            renderMemoryPanel();
+        }
+
+        function renderMemoryPanel() {
+            const container = document.getElementById('memoryContent');
+            if (!container) return;
+
+            if (userMemories.length === 0) {
+                container.innerHTML = '<div class="memory-empty">No memories yet. As you chat, the copilot will learn and remember key facts.</div>';
+                return;
+            }
+
+            const grouped = { fact: [], preference: [], entity_context: [] };
+            for (const m of userMemories) {
+                const type = m.memory_type || 'fact';
+                if (!grouped[type]) grouped[type] = [];
+                grouped[type].push(m);
+            }
+
+            const typeLabels = { fact: 'Facts', preference: 'Preferences', entity_context: 'Entity Context' };
+            let html = '';
+            for (const [type, mems] of Object.entries(grouped)) {
+                if (mems.length === 0) continue;
+                html += `<div class="memory-type-group">
+                    <div class="memory-type-label">${typeLabels[type] || type}</div>
+                    <div class="memory-chips">`;
+                for (const m of mems) {
+                    html += `<span class="memory-chip" title="${escapeHtml(m.content || '')}">
+                        <span class="memory-chip-text">${escapeHtml(truncate(m.content || '', 60))}</span>
+                        <button class="memory-chip-del" onclick="deleteMemory('${m.id}')" title="Delete">&times;</button>
+                    </span>`;
+                }
+                html += '</div></div>';
+            }
+            container.innerHTML = html;
+        }
+
+        async function deleteMemory(id) {
+            try {
+                await apiDelete('/api/copilot/memory/' + id);
+                userMemories = userMemories.filter(m => m.id !== id);
+                renderMemoryPanel();
+            } catch {
+                showToast('Failed to delete memory', 'error');
+            }
+        }
+
+        function toggleMemoryPanel() {
+            const section = document.getElementById('memorySection');
+            const btn = document.getElementById('memoryToggleBtn');
+            section.classList.toggle('open');
+            btn.classList.toggle('active', section.classList.contains('open'));
+            if (section.classList.contains('open') && userMemories.length === 0) {
+                loadMemories();
+            }
+        }
+
+        // Helper: apiDelete (if not in api.js)
+        async function apiDelete(url) {
+            const token = localStorage.getItem('complychip_token');
+            return fetch(url, {
+                method: 'DELETE',
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+            });
+        }
+
+        // Helper: formatDate (if not defined)
+        function formatDate(d) {
+            if (!d) return '-';
+            try { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
+            catch { return String(d); }
+        }
+
+        // Helper: renderSpinner
+        function renderSpinner(size) {
+            return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>`;
+        }
+
+        // Helper: confirmAction
+        async function confirmAction(msg) { return confirm(msg); }
+
+        // Helper: showToast
+        function showToast(msg, type) {
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;color:#fff;animation:msgFadeIn 0.3s ease;';
+            el.style.background = type === 'error' ? 'var(--danger)' : 'var(--success)';
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        // Helper: getUser
+        function getUser() {
+            try { return JSON.parse(localStorage.getItem('complychip_user') || '{}'); }
+            catch { return {}; }
         }
     </script>
 </body>
