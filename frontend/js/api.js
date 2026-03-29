@@ -82,6 +82,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Session heartbeat — keeps session alive and detects revocations
+let _heartbeatInterval = null;
+function startSessionHeartbeat() {
+    if (_heartbeatInterval) return;
+    _heartbeatInterval = setInterval(async () => {
+        if (!isAuthenticated()) return;
+        try {
+            const res = await apiFetch('/auth/heartbeat', { method: 'POST' });
+            if (!res || res.status === 401) {
+                clearInterval(_heartbeatInterval);
+                _heartbeatInterval = null;
+                clearAuth();
+                showToast('Session expired. Please sign in again.', 'error', 5000);
+                setTimeout(() => { window.location.href = '/'; }, 2000);
+            }
+        } catch (e) {
+            // Network error — don't log out, just skip
+        }
+    }, 5 * 60 * 1000); // Every 5 minutes
+}
+// Start heartbeat on auth pages
+document.addEventListener('DOMContentLoaded', () => {
+    if (isAuthenticated()) startSessionHeartbeat();
+});
+
 // Logout with server-side session invalidation
 async function logout() {
     try {

@@ -503,7 +503,9 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!initLayout('documents', 'Document Register', 'Manage and monitor all compliance documents')) return;
+            const user = getUser() || {};
+            const docTitle = user.role === 'admin' ? 'All Documents' : 'Your Documents';
+            if (!initLayout('documents', docTitle, 'Manage and monitor compliance documents')) return;
             await loadDocuments();
         });
 
@@ -1022,6 +1024,7 @@
 
         function openDocViewer(doc) {
             if (!doc) return;
+            trackActivity('document_open', 'document', doc.id, { name: doc.name });
             viewerDoc = doc;
             viewerZoom = 100;
 
@@ -1299,6 +1302,7 @@
         });
 
         async function downloadDoc(docId) {
+            trackActivity('document_download', 'document', docId);
             try {
                 const res = await apiGet(`/api/documents/${docId}/download`);
                 if (res && res.ok) {

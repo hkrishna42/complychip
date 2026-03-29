@@ -337,6 +337,9 @@ async def list_documents(
         org_id = user.get("org_id", "")
         if org_id:
             filters.append(("organization_id", "==", org_id))
+        # Non-admin users only see their own uploaded documents
+        if user.get("role") != "admin":
+            filters.append(("uploaded_by", "==", user["user_id"]))
         if entity_id:
             filters.append(("entity_id", "==", entity_id))
         if doc_type:
@@ -362,8 +365,8 @@ async def list_documents(
     except Exception:
         firestore_available = False
 
-    # Demo fallback — only when Firestore is completely unavailable
-    if not firestore_available:
+    # Demo fallback — only when Firestore is completely unavailable, admin only
+    if not firestore_available and user.get("role") == "admin":
         demos = _demo_documents()
         if entity_id:
             demos = [d for d in demos if d["entity_id"] == entity_id]
@@ -387,7 +390,12 @@ async def get_single_document(doc_id: str, user: dict = Depends(get_current_user
     try:
         doc = get_document("documents", doc_id)
         if doc:
+            # Non-admin can only access their own documents
+            if user.get("role") != "admin" and doc.get("uploaded_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
             return _normalize_doc(doc)
+    except HTTPException:
+        raise
     except Exception:
         pass
 
@@ -404,6 +412,17 @@ async def update_doc(doc_id: str, body: DocumentUpdate, user: dict = Depends(get
     updates = {k: v for k, v in body.dict().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Ownership check for non-admin
+    if user.get("role") != "admin":
+        try:
+            doc = get_document("documents", doc_id)
+            if doc and doc.get("uploaded_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
     try:
         success = update_document("documents", doc_id, updates)
@@ -422,7 +441,12 @@ async def archive_document(doc_id: str, user: dict = Depends(get_current_user)):
     try:
         # Get the doc first to find its entity_id
         doc = get_document("documents", doc_id)
-        entity_id = doc.get("entity_id", "") if doc else ""
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        # Ownership check for non-admin
+        if user.get("role") != "admin" and doc.get("uploaded_by") != user["user_id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        entity_id = doc.get("entity_id", "")
 
         success = update_document("documents", doc_id, {"status": "archived", "archived_by": user["user_id"]})
         if success:

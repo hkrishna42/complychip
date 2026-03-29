@@ -168,11 +168,18 @@ def _demo_gap_analysis() -> dict:
 async def get_dashboard_summary(user: dict = Depends(get_current_user)):
     """Get dashboard summary statistics."""
     org_id = user.get("org_id", "")
+    is_admin = user.get("role") == "admin"
     try:
-        filters = [("organization_id", "==", org_id)] if org_id else None
-        docs = get_documents("documents", filters=filters, limit=500)
-        entities = get_documents("entities", filters=filters, limit=100)
-        vendors = get_documents("vendors", filters=filters, limit=100)
+        doc_filters = [("organization_id", "==", org_id)] if org_id else []
+        entity_filters = [("organization_id", "==", org_id)] if org_id else []
+        vendor_filters = [("organization_id", "==", org_id)] if org_id else None
+        # Non-admin users only see their own data
+        if not is_admin:
+            doc_filters.append(("uploaded_by", "==", user["user_id"]))
+            entity_filters.append(("created_by", "==", user["user_id"]))
+        docs = get_documents("documents", filters=doc_filters if doc_filters else None, limit=500)
+        entities = get_documents("entities", filters=entity_filters if entity_filters else None, limit=100)
+        vendors = get_documents("vendors", filters=vendor_filters, limit=100)
         if docs or entities:
             now = datetime.now(timezone.utc)
             # Separate active vs archived docs
@@ -315,8 +322,10 @@ async def get_risk_matrix(user: dict = Depends(get_current_user)):
     """Get risk matrix data (entities by risk level and score)."""
     try:
         org_id = user.get("org_id", "")
-        filters = [("organization_id", "==", org_id)] if org_id else None
-        entities = get_documents("entities", filters=filters, limit=100)
+        filters = [("organization_id", "==", org_id)] if org_id else []
+        if user.get("role") != "admin":
+            filters.append(("created_by", "==", user["user_id"]))
+        entities = get_documents("entities", filters=filters if filters else None, limit=100)
         if entities:
             matrix = []
             for ent in entities:
@@ -340,8 +349,10 @@ async def get_expiry_forecast(user: dict = Depends(get_current_user)):
     """Get upcoming document expirations in 30/60/90 day buckets."""
     try:
         org_id = user.get("org_id", "")
-        filters = [("organization_id", "==", org_id)] if org_id else None
-        docs = get_documents("documents", filters=filters, limit=500)
+        filters = [("organization_id", "==", org_id)] if org_id else []
+        if user.get("role") != "admin":
+            filters.append(("uploaded_by", "==", user["user_id"]))
+        docs = get_documents("documents", filters=filters if filters else None, limit=500)
         if docs:
             now = datetime.now(timezone.utc)
             buckets = {"overdue": [], "next_30_days": [], "next_60_days": [], "next_90_days": []}

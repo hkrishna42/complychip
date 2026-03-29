@@ -170,6 +170,9 @@ async def list_entities(
         org_id = user.get("org_id", "")
         if org_id:
             filters.append(("organization_id", "==", org_id))
+        # Non-admin users only see entities they created
+        if user.get("role") != "admin":
+            filters.append(("created_by", "==", user["user_id"]))
         if entity_type:
             filters.append(("entity_type", "==", entity_type))
         if status:
@@ -187,19 +190,21 @@ async def list_entities(
     except Exception:
         pass
 
-    # Demo fallback
-    demos = _demo_entities()
-    if entity_type:
-        demos = [e for e in demos if e["entity_type"] == entity_type]
-    if status:
-        demos = [e for e in demos if e["status"] == status]
-    if search:
-        s = search.lower()
-        demos = [e for e in demos if s in e["name"].lower() or s in e.get("address", "").lower()]
-    total = len(demos)
-    start = (page - 1) * limit
-    demos = demos[start:start + limit]
-    return {"entities": demos, "total": total, "page": page, "limit": limit}
+    # Demo fallback — only show demo data for admin users
+    if user.get("role") == "admin":
+        demos = _demo_entities()
+        if entity_type:
+            demos = [e for e in demos if e["entity_type"] == entity_type]
+        if status:
+            demos = [e for e in demos if e["status"] == status]
+        if search:
+            s = search.lower()
+            demos = [e for e in demos if s in e["name"].lower() or s in e.get("address", "").lower()]
+        total = len(demos)
+        start = (page - 1) * limit
+        demos = demos[start:start + limit]
+        return {"entities": demos, "total": total, "page": page, "limit": limit}
+    return {"entities": [], "total": 0, "page": page, "limit": limit}
 
 
 @router.post("/")
@@ -272,7 +277,11 @@ async def get_entity(entity_id: str, user: dict = Depends(get_current_user)):
     try:
         entity = get_document("entities", entity_id)
         if entity:
+            if user.get("role") != "admin" and entity.get("created_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
             return _enrich_entity(entity)
+    except HTTPException:
+        raise
     except Exception:
         pass
 
@@ -289,6 +298,17 @@ async def update_entity(entity_id: str, body: EntityUpdate, user: dict = Depends
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    # Ownership check for non-admin
+    if user.get("role") != "admin":
+        try:
+            entity = get_document("entities", entity_id)
+            if entity and entity.get("created_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     try:
         success = update_document("entities", entity_id, updates)
         if success:
@@ -302,6 +322,17 @@ async def update_entity(entity_id: str, body: EntityUpdate, user: dict = Depends
 @router.delete("/{entity_id}")
 async def archive_entity(entity_id: str, user: dict = Depends(get_current_user)):
     """Soft-delete (archive) an entity."""
+    # Ownership check for non-admin
+    if user.get("role") != "admin":
+        try:
+            entity = get_document("entities", entity_id)
+            if entity and entity.get("created_by") != user["user_id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     try:
         success = update_document("entities", entity_id, {"status": "archived", "archived_by": user["user_id"]})
         if success:

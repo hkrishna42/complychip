@@ -716,6 +716,7 @@
                 setTimeout(() => {
                     document.getElementById('uploadProgress').classList.remove('active');
                     document.getElementById('uploadSuccess').classList.add('active');
+                    trackActivity('document_upload', 'document', '', { filename: selectedFile ? selectedFile.name : '' });
                 }, 500);
             } catch {
                 clearInterval(interval);

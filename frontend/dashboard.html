@@ -732,8 +732,25 @@
                 { colors: [chartColors.success, chartColors.warning, chartColors.danger, '#991b1b'], cutout: '65%' }
             );
 
-            // Activity Feed
-            const activity = data.activity || [];
+            // Activity Feed — merge document activity + user activity
+            let activity = data.activity || [];
+            try {
+                const actRes = await apiGet('/api/activity?limit=10');
+                if (actRes && actRes.ok) {
+                    const actData = await actRes.json();
+                    const userActs = (actData.activities || []).map(a => {
+                        const actionMap = { page_view: 'Viewed', document_open: 'Opened', document_upload: 'Uploaded', document_download: 'Downloaded', login: 'Logged in', logout: 'Logged out', register: 'Registered', copilot_message: 'Copilot chat' };
+                        const label = actionMap[a.action] || a.action;
+                        const detail = a.resource_id ? ` ${a.resource_type} ${a.resource_id}` : (a.resource_type ? ` ${a.resource_type}` : '');
+                        return {
+                            text: `${label}${detail}`,
+                            type: a.action === 'login' || a.action === 'register' ? 'success' : 'info',
+                            time: a.timestamp ? timeAgo(a.timestamp) : '',
+                        };
+                    });
+                    if (userActs.length > 0) activity = userActs;
+                }
+            } catch {}
             document.getElementById('activityFeed').innerHTML = activity.map(a => `
                 <div class="activity-item">
                     <div class="activity-dot ${a.type}"></div>

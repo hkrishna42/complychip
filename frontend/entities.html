@@ -190,7 +190,9 @@
         let radarChart = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!initLayout('entities', 'Entity Management', 'Monitor compliance across all entities')) return;
+            const user = getUser() || {};
+            const entityTitle = user.role === 'admin' ? 'All Entities' : 'Your Entities';
+            if (!initLayout('entities', entityTitle, 'Monitor compliance across entities')) return;
             await loadEntities();
         });
 

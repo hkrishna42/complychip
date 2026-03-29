@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComplyChip - Create Account</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/design-system.css?v=4">
+    <link rel="stylesheet" href="/css/components.css?v=4">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f1117;
+            color: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container { width: 100%; max-width: 420px; padding: 24px; }
+        .login-card {
+            background: #1a1b23;
+            border: 1px solid #2d2e3a;
+            border-radius: 16px;
+            padding: 40px 36px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .logo-section { text-align: center; margin-bottom: 36px; }
+        .logo-icon {
+            width: 56px; height: 56px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            border-radius: 14px;
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-bottom: 16px;
+        }
+        .logo-icon svg { width: 32px; height: 32px; }
+        .logo-text { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: #f1f5f9; }
+        .logo-tagline { font-size: 13px; color: #64748b; margin-top: 6px; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 13px; font-weight: 500; color: #94a3b8; margin-bottom: 8px; }
+        .form-input {
+            width: 100%; padding: 12px 16px;
+            background: #12131a; border: 1px solid #2d2e3a; border-radius: 10px;
+            color: #f1f5f9; font-size: 14px; font-family: 'Inter', sans-serif;
+            outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .form-input:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
+        .form-input::placeholder { color: #475569; }
+        .form-input.error { border-color: #ef4444; }
+        .btn-primary {
+            width: 100%; padding: 12px 24px;
+            background: #4f46e5; color: #fff; border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .btn-primary:hover { background: #4338ca; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .error-msg { color: #ef4444; font-size: 13px; margin-top: 8px; display: none; }
+        .field-error { color: #ef4444; font-size: 12px; margin-top: 4px; display: none; }
+        .divider { height: 1px; background: #2d2e3a; margin: 24px 0; }
+        .divider-text {
+            display: flex; align-items: center; gap: 16px; margin: 24px 0;
+            color: #64748b; font-size: 12px; font-weight: 500;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .divider-text::before, .divider-text::after { content: ''; flex: 1; height: 1px; background: #2d2e3a; }
+        .demo-note { text-align: center; font-size: 12px; color: #64748b; }
+        .demo-note a { color: #4f46e5; text-decoration: none; }
+        .btn-google-signin {
+            width: 100%; padding: 12px 24px;
+            background: #ffffff; color: #3c4043;
+            border: 1px solid #2d2e3a; border-radius: 10px;
+            font-size: 14px; font-weight: 500; font-family: 'Inter', sans-serif;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px;
+            transition: box-shadow 0.15s ease, background 0.15s ease;
+        }
+        .btn-google-signin:hover { background: #f8f9fa; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+        .btn-google-signin:active { transform: scale(0.98); }
+        .btn-google-signin:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-google-signin svg { width: 20px; height: 20px; flex-shrink: 0; }
+        .password-strength { height: 3px; border-radius: 2px; margin-top: 8px; transition: all 0.3s; }
+        .password-strength.weak { background: #ef4444; width: 33%; }
+        .password-strength.medium { background: #f59e0b; width: 66%; }
+        .password-strength.strong { background: #22c55e; width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo-section">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <path d="M9 12l2 2 4-4"/>
+                    </svg>
+                </div>
+                <div class="logo-text">ComplyChip</div>
+                <div class="logo-tagline">Create your account</div>
+            </div>
+
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label class="form-label" for="name">Full name</label>
+                    <input class="form-input" type="text" id="name" name="name"
+                           placeholder="John Doe" required autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="email">Email address</label>
+                    <input class="form-input" type="email" id="email" name="email"
+                           placeholder="you@company.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input class="form-input" type="password" id="password" name="password"
+                           placeholder="Min 8 characters" required autocomplete="new-password"
+                           oninput="checkPasswordStrength()">
+                    <div class="password-strength" id="passwordStrength"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="confirmPassword">Confirm password</label>
+                    <input class="form-input" type="password" id="confirmPassword" name="confirmPassword"
+                           placeholder="Re-enter password" required autocomplete="new-password">
+                    <div class="field-error" id="confirmError">Passwords do not match</div>
+                </div>
+                <div class="error-msg" id="errorMsg"></div>
+                <button class="btn-primary" type="submit" id="registerBtn">Create Account</button>
+            </form>
+
+            <div class="divider-text"><span>OR</span></div>
+
+            <button class="btn-google-signin" id="googleBtn" onclick="googleSignIn()">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Sign up with Google
+            </button>
+
+            <div class="divider" style="margin-top:24px;"></div>
+            <div class="demo-note">
+                Already have an account? <a href="/">Sign in</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function checkPasswordStrength() {
+            const pw = document.getElementById('password').value;
+            const bar = document.getElementById('passwordStrength');
+            if (!pw) { bar.className = 'password-strength'; return; }
+            let score = 0;
+            if (pw.length >= 8) score++;
+            if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+            if (/[0-9]/.test(pw)) score++;
+            if (/[^A-Za-z0-9]/.test(pw)) score++;
+            bar.className = 'password-strength ' + (score <= 1 ? 'weak' : score <= 2 ? 'medium' : 'strong');
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const btn = document.getElementById('registerBtn');
+            const errorEl = document.getElementById('errorMsg');
+            const confirmError = document.getElementById('confirmError');
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            errorEl.style.display = 'none';
+            confirmError.style.display = 'none';
+
+            // Validate
+            if (password.length < 8) {
+                errorEl.textContent = 'Password must be at least 8 characters';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (password !== confirmPassword) {
+                confirmError.style.display = 'block';
+                document.getElementById('confirmPassword').classList.add('error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+
+            try {
+                const res = await fetch('/auth/register-public', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+                const data = await res.json();
+                if (res.ok && data.access_token) {
+                    localStorage.setItem('complychip_access_token', data.access_token);
+                    if (data.refresh_token) localStorage.setItem('complychip_refresh_token', data.refresh_token);
+                    const user = { name: data.name, email: data.email, role: data.role };
+                    localStorage.setItem('complychip_user', JSON.stringify(user));
+                    window.location.href = '/dashboard.html';
+                } else {
+                    errorEl.textContent = data.detail || data.message || 'Registration failed';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Connection error. Please try again.';
+                errorEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+            }
+        }
+
+        // Google Sign-In (same as login page)
+        async function googleSignIn() {
+            const btn = document.getElementById('googleBtn');
+            const errorEl = document.getElementById('errorMsg');
+            btn.disabled = true;
+            errorEl.style.display = 'none';
+
+            try {
+                const redirectUri = window.location.origin + '/auth-callback.html';
+                const res = await fetch('/auth/google/url?redirect_uri=' + encodeURIComponent(redirectUri));
+                const { auth_url } = await res.json();
+                if (!auth_url) throw new Error('No auth URL returned');
+
+                const w = 500, h = 600;
+                const left = (screen.width - w) / 2;
+                const top = (screen.height - h) / 2;
+                const popup = window.open(auth_url, 'google-signin', `width=${w},height=${h},left=${left},top=${top}`);
+
+                const handler = async (e) => {
+                    if (e.origin !== window.location.origin) return;
+                    if (e.data?.type !== 'google-auth-code') return;
+                    window.removeEventListener('message', handler);
+                    const code = e.data.code;
+                    try {
+                        const loginRes = await fetch('/auth/google/callback', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code, redirect_uri: redirectUri })
+                        });
+                        const data = await loginRes.json();
+                        if (data.access_token) {
+                            localStorage.setItem('complychip_access_token', data.access_token);
+                            if (data.refresh_token) localStorage.setItem('complychip_refresh_token', data.refresh_token);
+                            if (data.user) localStorage.setItem('complychip_user', JSON.stringify(data.user));
+                            window.location.href = '/dashboard.html';
+                        } else {
+                            errorEl.textContent = data.detail || 'Google sign-up failed';
+                            errorEl.style.display = 'block';
+                        }
+                    } catch (err) {
+                        errorEl.textContent = 'Connection error during Google sign-up.';
+                        errorEl.style.display = 'block';
+                    }
+                    btn.disabled = false;
+                };
+                window.addEventListener('message', handler);
+                const pollTimer = setInterval(() => {
+                    if (popup && popup.closed) { clearInterval(pollTimer); btn.disabled = false; }
+                }, 500);
+            } catch (err) {
+                errorEl.textContent = 'Could not start Google sign-up. Please try again.';
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+            }
+        }
+
+        // Redirect if already logged in
+        if (localStorage.getItem('complychip_access_token')) {
+            window.location.href = '/dashboard.html';
+        }
+    </script>
+</body>
+</html>

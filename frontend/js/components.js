@@ -61,7 +61,12 @@ function renderSidebar(activePage) {
                 ${avatarHtml}
                 <div class="sidebar-user-info">
                     <div class="sidebar-user-name">${user.name || 'Admin'}</div>
-                    <div class="sidebar-user-role">${user.role || 'admin'}</div>
+                    <div class="sidebar-user-role">
+                        ${user.role === 'admin'
+                            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="vertical-align:-1px;margin-right:3px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+                            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="vertical-align:-1px;margin-right:3px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}
+                        ${user.role || 'viewer'}
+                    </div>
                 </div>
                 <button class="btn-icon sidebar-logout" onclick="logout()" title="Sign out">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>

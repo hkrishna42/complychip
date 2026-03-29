@@ -657,3 +657,94 @@ async def logout(request: Request, user: dict = Depends(get_current_user)):
         logger.warning("Failed to log logout activity: %s", e)
 
     return {"message": "Logged out successfully"}
+
+
+# ---------------------------------------------------------------------------
+# Public registration (self-service)
+# ---------------------------------------------------------------------------
+
+class PublicRegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+
+
+@router.post("/register-public")
+async def register_public(body: PublicRegisterRequest, request: Request):
+    """Self-service registration. Creates a viewer account and auto-logs in."""
+    if not body.email or not body.password or not body.name:
+        raise HTTPException(status_code=400, detail="Name, email, and password are required")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    # Check email uniqueness
+    existing = get_user_by_email(body.email)
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Create user with viewer role
+    user_data = {
+        "email": body.email,
+        "password": hash_password(body.password),
+        "name": body.name,
+        "role": "viewer",
+        "organization_id": "default",
+        "is_active": True,
+        "auth_provider": "email",
+        "preferences": {
+            "dark_mode": False,
+            "notification_email": True,
+            "timezone": "America/New_York",
+        },
+    }
+    try:
+        user_id = create_document("users", user_data)
+    except Exception as e:
+        logger.error("Registration failed: %s", e)
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+    # Auto-login: create tokens + session
+    tokens = create_token_pair(user_id, "viewer", body.email, "default")
+    session_id = _create_session(user_id, tokens["token_jti"], request, login_method="email")
+    tokens = create_token_pair(user_id, "viewer", body.email, "default", session_id=session_id)
+
+    # Log activity
+    try:
+        create_document("user_activities", {
+            "user_id": user_id,
+            "action": "register",
+            "resource_type": "account",
+            "details": {"method": "email"},
+            "ip_address": request.client.host if request.client else "unknown",
+            "timestamp": datetime.now(timezone.utc),
+        })
+    except Exception:
+        pass
+
+    return {
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "user_id": user_id,
+        "email": body.email,
+        "name": body.name,
+        "role": "viewer",
+        "message": "Account created successfully",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Session heartbeat & idle timeout
+# ---------------------------------------------------------------------------
+
+@router.post("/heartbeat")
+async def session_heartbeat(user: dict = Depends(get_current_user)):
+    """Update session last_active timestamp. Frontend calls this every 5 minutes."""
+    session_id = user.get("session_id", "")
+    if session_id:
+        try:
+            update_document("sessions", session_id, {
+                "last_active": datetime.now(timezone.utc),
+            })
+        except Exception as e:
+            logger.warning("Heartbeat update failed: %s", e)
+    return {"status": "ok", "session_id": session_id}

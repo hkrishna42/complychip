@@ -61,6 +61,50 @@ MAX_MEMORIES_PER_USER = 200
 
 
 # ---------------------------------------------------------------------------
+# User-scoping helpers
+# ---------------------------------------------------------------------------
+
+def _user_doc_filters(user: dict) -> list:
+    """Build Firestore filters to scope documents to the current user.
+    Admin sees all; non-admin sees only their uploaded documents.
+    """
+    filters = []
+    org_id = user.get("org_id", "")
+    if org_id:
+        filters.append(("organization_id", "==", org_id))
+    if user.get("role") != "admin":
+        filters.append(("uploaded_by", "==", user["user_id"]))
+    return filters
+
+
+def _user_entity_filters(user: dict) -> list:
+    """Build Firestore filters to scope entities to the current user.
+    Admin sees all; non-admin sees only entities they created.
+    """
+    filters = []
+    org_id = user.get("org_id", "")
+    if org_id:
+        filters.append(("organization_id", "==", org_id))
+    if user.get("role") != "admin":
+        filters.append(("created_by", "==", user["user_id"]))
+    return filters
+
+
+def _check_doc_access(doc: dict, user: dict) -> bool:
+    """Check if a user has access to a specific document."""
+    if user.get("role") == "admin":
+        return True
+    return doc.get("uploaded_by") == user["user_id"]
+
+
+def _check_entity_access(entity: dict, user: dict) -> bool:
+    """Check if a user has access to a specific entity."""
+    if user.get("role") == "admin":
+        return True
+    return entity.get("created_by") == user["user_id"]
+
+
+# ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
 
@@ -203,10 +247,7 @@ async def tool_search_documents(params: dict, user: dict) -> dict:
     document_type = params.get("document_type")
     status = params.get("status")
 
-    org_id = user.get("org_id", "")
-    filters = []
-    if org_id:
-        filters.append(("organization_id", "==", org_id))
+    filters = _user_doc_filters(user)
     if entity_id:
         filters.append(("entity_id", "==", entity_id))
     if document_type:
@@ -270,13 +311,15 @@ async def tool_get_document_details(params: dict, user: dict) -> dict:
     if document_id:
         try:
             doc = get_document("documents", document_id)
+            if doc and not _check_doc_access(doc, user):
+                doc = None  # Access denied — treat as not found
         except Exception:
             pass
 
-    # If no ID, try searching by name
+    # If no ID, try searching by name (user-scoped)
     if not doc and document_name:
         try:
-            all_docs = get_documents("documents", limit=100)
+            all_docs = get_documents("documents", filters=_user_doc_filters(user), limit=100)
             name_lower = document_name.lower()
             for d in all_docs:
                 if name_lower in d.get("name", "").lower():
@@ -393,13 +436,15 @@ async def tool_get_entity_info(params: dict, user: dict) -> dict:
     if entity_id:
         try:
             entity = get_document("entities", entity_id)
+            if entity and not _check_entity_access(entity, user):
+                entity = None
         except Exception:
             pass
 
-    # Try by name
+    # Try by name (user-scoped)
     if not entity and entity_name:
         try:
-            entities = get_documents("entities", limit=100)
+            entities = get_documents("entities", filters=_user_entity_filters(user), limit=100)
             name_lower = entity_name.lower()
             for e in entities:
                 if name_lower in e.get("name", "").lower():
@@ -414,9 +459,11 @@ async def tool_get_entity_info(params: dict, user: dict) -> dict:
             "data": {"type": "empty"},
         }
 
-    # Get documents for this entity
+    # Get documents for this entity (user-scoped)
     try:
         docs = get_entity_documents(entity.get("id", ""))
+        if user.get("role") != "admin":
+            docs = [d for d in docs if d.get("uploaded_by") == user["user_id"]]
     except Exception:
         docs = []
 
@@ -471,11 +518,8 @@ async def tool_list_entities(params: dict, user: dict) -> dict:
     """List all entities/vendors with scores."""
     entity_type = params.get("entity_type")
     risk_level = params.get("risk_level")
-    org_id = user.get("org_id", "")
 
-    filters = []
-    if org_id:
-        filters.append(("organization_id", "==", org_id))
+    filters = _user_entity_filters(user)
     if entity_type:
         filters.append(("entity_type", "==", entity_type))
 
@@ -607,13 +651,13 @@ async def tool_get_compliance_score(params: dict, user: dict) -> dict:
 async def tool_get_analytics(params: dict, user: dict) -> dict:
     """Get compliance analytics, trends, risk matrix."""
     metric_type = params.get("metric_type", "summary")
-    org_id = user.get("org_id", "")
-    filters = [("organization_id", "==", org_id)] if org_id else None
+    doc_filters = _user_doc_filters(user)
+    entity_filters = _user_entity_filters(user)
 
     if metric_type == "summary":
         try:
-            docs = get_documents("documents", filters=filters, limit=500)
-            entities = get_documents("entities", filters=filters, limit=100)
+            docs = get_documents("documents", filters=doc_filters if doc_filters else None, limit=500)
+            entities = get_documents("entities", filters=entity_filters if entity_filters else None, limit=100)
         except Exception:
             docs, entities = [], []
 
@@ -669,7 +713,7 @@ async def tool_get_analytics(params: dict, user: dict) -> dict:
 
     elif metric_type == "risk_matrix":
         try:
-            entities = get_documents("entities", filters=filters, limit=100)
+            entities = get_documents("entities", filters=entity_filters if entity_filters else None, limit=100)
         except Exception:
             entities = []
 
@@ -701,7 +745,7 @@ async def tool_get_analytics(params: dict, user: dict) -> dict:
 
     elif metric_type == "expiry_forecast":
         try:
-            docs = get_documents("documents", filters=filters, limit=500)
+            docs = get_documents("documents", filters=doc_filters if doc_filters else None, limit=500)
         except Exception:
             docs = []
 
@@ -836,10 +880,10 @@ async def tool_semantic_search(params: dict, user: dict) -> dict:
     except Exception:
         matches = []
 
-    # If no Pinecone results, fallback to Firestore text search
+    # If no Pinecone results, fallback to Firestore text search (user-scoped)
     if not matches:
         try:
-            all_docs = get_documents("documents", limit=50)
+            all_docs = get_documents("documents", filters=_user_doc_filters(user), limit=50)
             q_lower = query_text.lower()
             relevant = []
             for d in all_docs:
@@ -908,11 +952,7 @@ async def tool_semantic_search(params: dict, user: dict) -> dict:
 async def tool_get_expiring_docs(params: dict, user: dict) -> dict:
     """Get documents expiring within N days."""
     days = params.get("days", 30)
-    org_id = user.get("org_id", "")
-
-    filters = []
-    if org_id:
-        filters.append(("organization_id", "==", org_id))
+    filters = _user_doc_filters(user)
 
     try:
         docs = get_documents("documents", filters=filters if filters else None, limit=500)
@@ -1000,8 +1040,14 @@ async def tool_get_gaps(params: dict, user: dict) -> dict:
     if not entity:
         return {"message": f"Entity '{entity_id}' not found.", "data": {"type": "empty"}}
 
+    # Access check
+    if not _check_entity_access(entity, user):
+        return {"message": "Access denied to this entity.", "data": {"type": "empty"}}
+
     try:
         docs = get_entity_documents(entity_id)
+        if user.get("role") != "admin":
+            docs = [d for d in docs if d.get("uploaded_by") == user["user_id"]]
     except Exception:
         docs = []
 
@@ -1078,13 +1124,11 @@ async def tool_get_gaps(params: dict, user: dict) -> dict:
 async def tool_compare_entities(params: dict, user: dict) -> dict:
     """Compare compliance across multiple entities."""
     entity_ids = params.get("entity_ids", [])
-    org_id = user.get("org_id", "")
 
-    # If no specific IDs, compare all entities
+    # If no specific IDs, compare all user-accessible entities
     if not entity_ids:
-        filters = [("organization_id", "==", org_id)] if org_id else None
         try:
-            entities = get_documents("entities", filters=filters, limit=20)
+            entities = get_documents("entities", filters=_user_entity_filters(user), limit=20)
             entity_ids = [e.get("id", "") for e in entities if e.get("id")]
         except Exception:
             entities = []
@@ -1096,6 +1140,8 @@ async def tool_compare_entities(params: dict, user: dict) -> dict:
     for eid in entity_ids[:10]:
         try:
             entity = get_document("entities", eid)
+            if entity and not _check_entity_access(entity, user):
+                continue
             score_data = calculate_entity_score(eid)
         except Exception:
             entity = None
@@ -1227,8 +1273,8 @@ async def tool_set_reminder(params: dict, user: dict) -> dict:
 async def tool_general_answer(params: dict, user: dict) -> dict:
     """Answer general compliance questions using AI with RAG context.
 
-    Routes through n8n Copilot Agent workflow (Gemini + Pinecone + Firebase)
-    when available, falls back to local Gemini + Pinecone.
+    Primary path: n8n Copilot Agent workflow (Gemini + Pinecone + Firebase).
+    Fallback: Firestore document context + local Gemini.
     """
     question = params.get("question", "")
     context_doc_ids = params.get("context_docs", [])
@@ -1237,94 +1283,109 @@ async def tool_general_answer(params: dict, user: dict) -> dict:
     if not question:
         return {"message": "Please ask a question.", "data": {"type": "text"}}
 
-    # --- Try n8n Copilot Agent first (has Gemini + Pinecone + Firebase built in) ---
-    try:
-        # Build context string from recent docs if available
-        context_str = ""
-        if context_doc_ids:
-            doc_names = []
-            for doc_id in context_doc_ids[:3]:
-                try:
-                    doc = get_document("documents", doc_id)
-                    if doc:
-                        doc_names.append(doc.get("name", ""))
-                except Exception:
-                    pass
-            if doc_names:
-                context_str = f"Referenced documents: {', '.join(doc_names)}"
+    # Build context from explicit doc IDs or recent Firestore docs
+    context_str = ""
+    context_docs = []
+    if context_doc_ids:
+        for doc_id in context_doc_ids[:5]:
+            try:
+                doc = get_document("documents", doc_id)
+                if doc:
+                    name = doc.get("name", "Document")
+                    text = (doc.get("extracted_content", "") or doc.get("ai_summary", ""))[:3000]
+                    context_docs.append({"name": name, "text": text})
+            except Exception:
+                pass
+        if context_docs:
+            context_str = "Referenced documents: " + ", ".join(d["name"] for d in context_docs)
 
+    # --- Primary: n8n Copilot Agent (has Gemini + Pinecone RAG built in) ---
+    try:
         n8n_result = await trigger_copilot_agent(
             query=question,
             context=context_str,
             conversation_history=conversation_history[-5:] if conversation_history else [],
         )
 
-        # If n8n returned a real response, use it
-        if n8n_result.get("status") == "ok" and n8n_result.get("response"):
-            sources = n8n_result.get("sources", [])
+        # n8n returns various shapes — accept any non-empty response
+        response_text = (
+            n8n_result.get("response")
+            or n8n_result.get("output")
+            or n8n_result.get("message")
+            or n8n_result.get("text")
+            or ""
+        )
+        # If the result is a list (n8n sometimes wraps), grab first element
+        if isinstance(n8n_result, list) and n8n_result:
+            first = n8n_result[0]
+            response_text = first.get("response") or first.get("output") or first.get("message") or first.get("text") or str(first)
+
+        if response_text and len(response_text.strip()) > 10:
+            sources = n8n_result.get("sources", []) if isinstance(n8n_result, dict) else []
             if not sources:
-                # Try to extract doc names from the response text
-                sources = _extract_sources_from_response(n8n_result["response"])
+                sources = _extract_sources_from_response(response_text)
             return {
-                "message": n8n_result["response"],
+                "message": response_text,
+                "data": {"type": "text"},
+                "sources": sources,
+            }
+        else:
+            logger.info("n8n copilot returned empty/short response: %r", n8n_result)
+    except Exception as e:
+        logger.warning("n8n copilot agent failed: %s", e)
+
+    # --- Fallback: Firestore context + local Gemini ---
+    # Gather context from Firestore if not already provided
+    if not context_docs:
+        try:
+            recent_docs = get_documents("documents", filters=_user_doc_filters(user), limit=10)
+            q_lower = question.lower()
+            # Prefer docs whose content matches the question
+            for d in recent_docs:
+                searchable = (d.get("name", "") + d.get("ai_summary", "") + d.get("extracted_content", "")).lower()
+                if any(word in searchable for word in q_lower.split() if len(word) > 3):
+                    text = d.get("extracted_content", "") or d.get("ai_summary", "")
+                    if text:
+                        context_docs.append({"name": d.get("name", "Document"), "text": text[:3000]})
+            # If no keyword matches, use all recent docs with content
+            if not context_docs:
+                for d in recent_docs:
+                    text = d.get("ai_summary", "") or d.get("extracted_content", "")
+                    if text:
+                        context_docs.append({"name": d.get("name", "Document"), "text": text[:2000]})
+        except Exception:
+            pass
+
+    # Try local Gemini with Firestore context
+    try:
+        answer = chat_completion(
+            [{"role": "user", "content": question}],
+            context_docs if context_docs else None,
+        )
+        if answer and not answer.startswith("Based on the compliance"):
+            sources = [{"name": c["name"], "relevance": 0.8} for c in context_docs[:5]]
+            return {
+                "message": answer,
                 "data": {"type": "text"},
                 "sources": sources,
             }
     except Exception as e:
-        logger.warning("n8n copilot agent failed, falling back to local: %s", e)
+        logger.warning("Local Gemini failed: %s", e)
 
-    # --- Fallback: Local Gemini + Pinecone ---
-    context_docs = []
-
-    if context_doc_ids:
-        for doc_id in context_doc_ids[:5]:
-            try:
-                doc = get_document("documents", doc_id)
-                if doc:
-                    context_docs.append({
-                        "name": doc.get("name", "Document"),
-                        "text": (doc.get("extracted_content", "") or doc.get("ai_summary", ""))[:3000],
-                    })
-            except Exception:
-                pass
-
-    # Try RAG if no explicit context
-    if not context_docs:
-        try:
-            embedding = generate_embeddings(question)
-            org_id = user.get("org_id", "")
-            filter_meta = {"organization_id": org_id} if org_id else None
-            matches = query_similar(vector=embedding, top_k=3, filter_metadata=filter_meta)
-            for m in matches:
-                context_docs.append({
-                    "name": m.get("metadata", {}).get("name", "Document"),
-                    "text": m.get("metadata", {}).get("text", "")[:3000],
-                })
-        except Exception:
-            pass
-
-    # If still no context, try fetching recent docs from Firestore
-    if not context_docs:
-        try:
-            recent_docs = get_documents("documents", limit=5)
-            for d in recent_docs:
-                text = d.get("ai_summary", "") or d.get("extracted_content", "")
-                if text:
-                    context_docs.append({"name": d.get("name", "Document"), "text": text[:2000]})
-        except Exception:
-            pass
-
-    answer = chat_completion(
-        [{"role": "user", "content": question}],
-        context_docs if context_docs else None,
-    )
-
-    sources = [{"name": c["name"], "relevance": 0.8} for c in context_docs[:5]]
+    # --- Last resort: answer from Firestore data directly ---
+    if context_docs:
+        summary_lines = []
+        for cd in context_docs[:3]:
+            summary_lines.append(f"**{cd['name']}**: {cd['text'][:300]}...")
+        return {
+            "message": f"Here's what I found in your documents related to your question:\n\n" + "\n\n".join(summary_lines),
+            "data": {"type": "text"},
+            "sources": [{"name": c["name"], "relevance": 0.7} for c in context_docs[:3]],
+        }
 
     return {
-        "message": answer,
+        "message": "I couldn't find relevant information to answer your question. Try uploading more documents or rephrasing your question.",
         "data": {"type": "text"},
-        "sources": sources,
     }
 
 
