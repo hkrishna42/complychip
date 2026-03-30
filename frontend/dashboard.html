@@ -560,7 +560,8 @@
             const v = (apiVal, demoVal) => apiVal != null ? apiVal : demoVal;
 
             // Transform activity_feed from API format to display format
-            let activity = demo.activity;
+            // Only use demo activity when API is completely unavailable
+            let activity = hasApi ? [] : demo.activity;
             if (apiData.activity_feed && apiData.activity_feed.length > 0) {
                 activity = apiData.activity_feed.map(a => ({
                     text: `${a.name} — ${a.action}${a.entity_name ? ' (' + a.entity_name + ')' : ''}`,
@@ -570,22 +571,20 @@
             }
 
             // Build entity list from API data
-            let entities = demo.entities;
-            if (apiData.risk_distribution && hasApi) {
-                // Fetch real entities
+            // Only use demo entities when API is completely unavailable
+            let entities = hasApi ? [] : demo.entities;
+            if (hasApi) {
                 try {
                     const eres = await apiGet('/api/entities');
                     if (eres && eres.ok) {
                         const edata = await eres.json();
                         const elist = edata.entities || edata || [];
-                        if (elist.length > 0) {
-                            entities = elist.map(e => ({
-                                name: e.name || 'Unknown',
-                                score: e.compliance_score || e.score || 0,
-                                status: (e.compliance_score || 0) >= 80 ? 'compliant' : (e.compliance_score || 0) >= 60 ? 'warning' : 'expired',
-                                docs: e.document_count || 0,
-                            }));
-                        }
+                        entities = elist.map(e => ({
+                            name: e.name || 'Unknown',
+                            score: e.compliance_score || e.score || 0,
+                            status: (e.compliance_score || 0) >= 80 ? 'compliant' : (e.compliance_score || 0) >= 60 ? 'warning' : 'expired',
+                            docs: e.document_count || 0,
+                        }));
                     }
                 } catch {}
             }
@@ -603,23 +602,23 @@
                     documents = docData.documents || [];
                 }
             } catch {}
-            // Fallback demo documents if API returned nothing
-            if (documents.length === 0) {
+            // Only use demo documents when API is completely unavailable
+            if (documents.length === 0 && !hasApi) {
                 documents = getDemoDocuments();
             }
 
             const data = {
-                ...demo,
+                ...(hasApi ? {} : demo),
                 total_documents: hasApi ? (apiData.total_documents || 0) : demo.total_documents,
                 total_entities: hasApi ? (apiData.total_entities || 0) : demo.total_entities,
-                portfolio_score: v(apiData.avg_compliance_score, demo.portfolio_score),
-                expiring_30_days: v(apiData.expiring_30d, demo.expiring_30_days),
-                expiring_60_days: v(apiData.expiring_60d, demo.expiring_60_days),
-                expiring_90_days: v(apiData.expiring_90d, demo.expiring_90_days),
+                portfolio_score: hasApi ? (apiData.avg_compliance_score || 0) : demo.portfolio_score,
+                expiring_30_days: hasApi ? (apiData.expiring_30d || 0) : demo.expiring_30_days,
+                expiring_60_days: hasApi ? (apiData.expiring_60d || 0) : demo.expiring_60_days,
+                expiring_90_days: hasApi ? (apiData.expiring_90d || 0) : demo.expiring_90_days,
                 active_alerts: hasApi ? (expiredCount + exp30) : demo.active_alerts,
-                risk_distribution: apiData.risk_distribution || demo.risk_distribution,
+                risk_distribution: hasApi ? (apiData.risk_distribution || { low:0, medium:0, high:0, critical:0 }) : demo.risk_distribution,
                 activity: activity,
-                trend: apiData.trend || demo.trend,
+                trend: hasApi ? (apiData.trend || null) : demo.trend,
                 entities: entities,
                 expired: apiData.expired || 0,
                 documents: documents,
