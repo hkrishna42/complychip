@@ -170,11 +170,15 @@ async def get_dashboard_summary(user: dict = Depends(get_current_user)):
     org_id = user.get("org_id", "")
     is_admin = user.get("role") == "admin"
     try:
-        doc_filters = [("organization_id", "==", org_id)] if org_id else []
-        entity_filters = [("organization_id", "==", org_id)] if org_id else []
-        vendor_filters = [("organization_id", "==", org_id)] if org_id else None
-        # Non-admin users only see their own data
-        if not is_admin:
+        # Admin sees all data; non-admin filtered by org and ownership
+        if is_admin:
+            doc_filters = []
+            entity_filters = []
+            vendor_filters = None
+        else:
+            doc_filters = [("organization_id", "==", org_id)] if org_id else []
+            entity_filters = [("organization_id", "==", org_id)] if org_id else []
+            vendor_filters = [("organization_id", "==", org_id)] if org_id else None
             doc_filters.append(("uploaded_by", "==", user["user_id"]))
             entity_filters.append(("created_by", "==", user["user_id"]))
         docs = get_documents("documents", filters=doc_filters if doc_filters else None, limit=500)

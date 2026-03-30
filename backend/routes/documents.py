@@ -334,11 +334,12 @@ async def list_documents(
     firestore_available = True
     try:
         filters = []
+        is_admin = user.get("role") == "admin"
         org_id = user.get("org_id", "")
-        if org_id:
-            filters.append(("organization_id", "==", org_id))
-        # Non-admin users only see their own uploaded documents
-        if user.get("role") != "admin":
+        # Non-admin users: filter by org and their own uploads
+        if not is_admin:
+            if org_id:
+                filters.append(("organization_id", "==", org_id))
             filters.append(("uploaded_by", "==", user["user_id"]))
         if entity_id:
             filters.append(("entity_id", "==", entity_id))
