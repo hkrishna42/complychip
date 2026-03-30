@@ -189,12 +189,12 @@
         let scoreChart = null;
         let radarChart = null;
 
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             const user = getUser() || {};
             const entityTitle = user.role === 'admin' ? 'All Entities' : 'Your Entities';
             if (!initLayout('entities', entityTitle, 'Monitor compliance across entities')) return;
             await loadEntities();
-        });
+        })();
 
         async function loadEntities() {
             try {

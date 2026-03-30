@@ -201,10 +201,10 @@
     <script src="/js/components.js?v=4"></script>
     <script src="/js/charts.js?v=4"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             if (!initLayout('analytics', 'Analytics', 'Compliance intelligence and insights')) return;
             await loadAnalytics();
-        });
+        })();
 
         async function loadAnalytics() {
             let data;

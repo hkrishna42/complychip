@@ -200,10 +200,10 @@
         let allAlerts = [];
         let filteredAlerts = [];
 
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             if (!initLayout('regulatory', 'Regulatory Monitor', 'Track regulatory changes and compliance alerts')) return;
             await loadAlerts();
-        });
+        })();
 
         async function loadAlerts() {
             try {

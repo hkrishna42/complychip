@@ -75,7 +75,12 @@ function trackActivity(action, resourceType = '', resourceId = '', details = {})
 }
 
 // Auto-track page views
-document.addEventListener('DOMContentLoaded', () => {
+function _onDOMReady(fn) {
+    if (document.readyState !== 'loading') { fn(); }
+    else { document.addEventListener('DOMContentLoaded', fn); }
+}
+
+_onDOMReady(() => {
     if (isAuthenticated()) {
         const page = window.location.pathname.replace('.html', '').replace(/^\//, '') || 'login';
         trackActivity('page_view', 'page', page);
@@ -103,7 +108,7 @@ function startSessionHeartbeat() {
     }, 5 * 60 * 1000); // Every 5 minutes
 }
 // Start heartbeat on auth pages
-document.addEventListener('DOMContentLoaded', () => {
+_onDOMReady(() => {
     if (isAuthenticated()) startSessionHeartbeat();
 });
 

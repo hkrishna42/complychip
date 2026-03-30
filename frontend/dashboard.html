@@ -543,10 +543,10 @@
     <script src="/js/components.js?v=4"></script>
     <script src="/js/charts.js?v=4"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             if (!initLayout('dashboard', 'Command Center', 'Compliance health overview')) return;
             await loadDashboard();
-        });
+        })();
 
         async function loadDashboard() {
             const demo = getDemoData();
@@ -673,7 +673,7 @@
             return `${days}d ago`;
         }
 
-        function renderDashboard(data) {
+        async function renderDashboard(data) {
             // Stats — use explicit check to avoid 0 being treated as falsy
             document.getElementById('totalDocs').textContent = data.total_documents;
             document.getElementById('totalEntities').textContent = data.total_entities;

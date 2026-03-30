@@ -202,11 +202,11 @@
         let visibleTypes = new Set(['document', 'entity', 'vendor', 'regulation']);
         let nodes = [], edges = [];
 
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             if (!initLayout('graph', 'Knowledge Graph', 'Explore document relationships and connections')) return;
             await loadGraphData();
             initGraph();
-        });
+        })();
 
         async function loadGraphData() {
             try {

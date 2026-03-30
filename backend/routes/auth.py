@@ -204,9 +204,15 @@ async def login(body: LoginRequest, request: Request):
 
     if user:
         stored_pw = user.get("password_hash") or user.get("password", "")
-        if not stored_pw or not verify_password(body.password, stored_pw):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+        try:
+            pw_ok = stored_pw and verify_password(body.password, stored_pw)
+        except Exception:
+            pw_ok = False
+        if not pw_ok:
+            # Fall through to demo user check before rejecting
+            user = None
 
+    if user:
         # Update last_login
         update_document("users", user["id"], {"last_login": datetime.now(timezone.utc)})
 

@@ -502,12 +502,12 @@
         }
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             const user = getUser() || {};
             const docTitle = user.role === 'admin' ? 'All Documents' : 'Your Documents';
             if (!initLayout('documents', docTitle, 'Manage and monitor compliance documents')) return;
             await loadDocuments();
-        });
+        })();
 
         function normalizeStatus(doc) {
             if (doc.status === 'archived') return 'archived';

@@ -276,10 +276,10 @@
         let filteredVendors = [];
         let riskHistoryChart = null;
 
-        document.addEventListener('DOMContentLoaded', async () => {
+        (async () => {
             if (!initLayout('vendors', 'Vendor Risk Management', 'Monitor and manage vendor compliance risk')) return;
             await loadVendors();
-        });
+        })();
 
         async function loadVendors() {
             try {
