@@ -184,7 +184,8 @@ async def get_dashboard_summary(user: dict = Depends(get_current_user)):
         docs = get_documents("documents", filters=doc_filters if doc_filters else None, limit=500)
         entities = get_documents("entities", filters=entity_filters if entity_filters else None, limit=100)
         vendors = get_documents("vendors", filters=vendor_filters, limit=100)
-        if docs or entities:
+        # Always compute real stats (even if empty) — demo only used when Firestore throws
+        if True:
             now = datetime.now(timezone.utc)
             # Separate active vs archived docs
             active_docs = [d for d in docs if d.get("status") != "archived"]
