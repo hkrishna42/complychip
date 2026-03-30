@@ -61,11 +61,10 @@ async def get_activities(user: dict = Depends(get_current_user),
     activities = get_documents(
         "user_activities",
         filters=[("user_id", "==", user["user_id"])],
-        order_by="timestamp",
-        direction="DESCENDING",
-        limit=limit + offset,
+        limit=limit + offset + 200,  # over-fetch then sort in Python
     )
-    # Manual offset since Firestore doesn't have native offset
+    # Sort by timestamp descending (avoids Firestore composite index requirement)
+    activities.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
     page = activities[offset:offset + limit]
     return {
         "activities": page,
